@@ -8,7 +8,7 @@ PORT_NUMBER = 3000
 
 class requestHandler(BaseHTTPRequestHandler):
 
-    VM_VOLUME_FOLDER = os.path.dirname(os.path.realpath(__file__)) + '/node'
+    VM_VOLUME_FOLDER = './node'
 
     NODE_NETWORK_PORT = 7411
     NODE_RPC_PORT = 7410
