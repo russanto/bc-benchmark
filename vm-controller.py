@@ -5,6 +5,8 @@ import subprocess
 import sys
 
 PORT_NUMBER = 3000
+DOCKER_COMPOSE_FOLDER = os.path.dirname(os.path.realpath(__file__)) + '/docker-compose'
+BASH_SCRIPTS_FOLDER = os.path.dirname(os.path.realpath(__file__)) + '/bash-scripts'
 
 class requestHandler(BaseHTTPRequestHandler):
 
@@ -13,7 +15,7 @@ class requestHandler(BaseHTTPRequestHandler):
     NODE_NETWORK_PORT = 7411
     NODE_RPC_PORT = 7410
 
-    start_node_cmd = 'docker run -d -v ' + VM_VOLUME_FOLDER + ':/root/.multichain/benchmark --name multichain-node russanto/bm-btc-multichain multichaind benchmark@%s:%s'
+    start_node_cmd = 'start-multichain-node.sh %s %s %s'
     start_seed_cmd = 'docker-compose up -d'
 
     # STARTS THE SEED NODE
@@ -48,14 +50,23 @@ class requestHandler(BaseHTTPRequestHandler):
         with open(self.VM_VOLUME_FOLDER + '/multichain.conf', 'w') as conf:
             conf.write('rpcuser=multichainrpc\n')
             conf.write('rpcpassword=multichainpassword\n')
-            conf.write('rpcallowip=172.17.0.4')
+            conf.write('rpcallowip=0.0.0.0/0')
             conf.close()
-        # result['node'] = self.start_node(self.headers['Seed-ip'])
-        # result['controller'] = self.start_controller()
+        result['result'] = self.start_node('benchmark', self.headers['Seed-ip'], self.headers['Seed-port'])
         self.send_response(200)
         self.send_header('Content-type','application/json')
         self.end_headers()
         self.wfile.write(bytes(json.dumps(result),'utf-8'))
+        return
+
+    # Return the params.dat file necessary for multichaind with bitcoin protocol
+    def do_GET(self):
+        logfilename = self.VM_VOLUME_FOLDER + "/params.dat"             
+        with open(logfilename) as pwfile:
+            content = pwfile.read()
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(bytes(content,'utf-8'))
         return
 
     
@@ -64,8 +75,8 @@ class requestHandler(BaseHTTPRequestHandler):
         start_exec.wait()
         return start_exec.returncode
     
-    def start_node(self, seed_ip):
-        start_exec = subprocess.Popen(self.start_node_cmd % (seed_ip, self.NODE_NETWORK_PORT), shell=True)
+    def start_node(self, bc_name, seed_ip, seed_port):
+        start_exec = subprocess.Popen(BASH_SCRIPTS_FOLDER + self.start_node_cmd % (bc_name, seed_ip, seed_port), shell=True)
         start_exec.wait()
         return start_exec.returncode
 

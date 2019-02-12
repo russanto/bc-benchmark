@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  node:
+    image: russanto/bm-btc-multichain
+    ports:
+      - "7410-7411:7410-7411"
+    volumes:
+      - ./node:/root/.multichain/${CHAIN_NAME}
+    # restart: on-failure
+    command: multichaind ${CHAIN_NAME}@${SEED_NODE_HOST}:${SEED_NODE_PORT}
+  controller:
+    image: russanto/bm-btc-multichain-controller
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./node:/root/${CHAIN_NAME}
+    command: "python3 /root/node-controller.py"
+    environment:
+      - NODE_HOST=node
+      - CHAIN_NAME # must be the same as pointed in root folder
+    # restart: on-failure
+    depends_on:
+      - node
