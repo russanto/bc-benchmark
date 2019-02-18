@@ -53,25 +53,37 @@ func GetBlock(hash string) (*Block, bool) {
 }
 
 // InitBlock creates a new block and returns its pointer
-func (b *Block) InitBlock(hash string, height uint, miner *Node, previous *Block, timestamp time.Time) {
-	b.previous = previous
-	b.hash = hash
-	b.heigth = height
-	b.miner = miner
-	b.minedAt = timestamp
-	b.delays = make(map[string]time.Duration)
-	blocksRWMutex.Lock()
-	blocks[hash] = b
-	blocksRWMutex.Unlock()
+// func (b *Block) InitBlock(hash string, height uint, miner *Node, previous *Block, timestamp time.Time) {
+// 	b.previous = previous
+// 	b.hash = hash
+// 	b.heigth = height
+// 	b.miner = miner
+// 	b.minedAt = timestamp
+// 	b.delays = make(map[string]time.Duration)
+// 	blocksRWMutex.Lock()
+// 	blocks[hash] = b
+// 	blocksRWMutex.Unlock()
+// }
+
+// SetMiner update delays with the right miner timestamp. It is thread safe.
+func (b *Block) SetMiner(node *Node, minedAt time.Time) int {
+	b.Lock()
+	b.miner = node
+	minerDelayOffset := b.minedAt.Sub(minedAt)
+	b.minedAt = minedAt
+	for nodeName, delay := range b.delays {
+		b.delays[nodeName] = delay + minerDelayOffset
+	}
+	computedDelaysCount := len(b.delays)
+	b.Unlock()
+	return computedDelaysCount
 }
 
 // CalculateDelay puts the calculcated delay for the given node inside the block. It is thread safe.
 func (b *Block) CalculateDelay(nodeIdentifier string, time time.Time) int {
-	delay := time.Sub(b.minedAt)
-	var computedDelaysCount int
 	b.Lock()
-	b.delays[nodeIdentifier] = delay
-	computedDelaysCount = len(b.delays)
+	b.delays[nodeIdentifier] = time.Sub(b.minedAt)
+	computedDelaysCount := len(b.delays)
 	b.Unlock()
 	return computedDelaysCount
 }

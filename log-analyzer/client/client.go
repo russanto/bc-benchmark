@@ -37,11 +37,18 @@ const (
 var quitReader = make(chan os.Signal, 1)
 
 func main() {
-	clientName := os.Args[1]
-	serverEndpoint := os.Args[2]
+	// logFilePath := os.Args[1]
+	serverEndpoint := os.Args[1]
+	clientName := os.Args[2]
 
 	fmt.Print("Start\n")
 	entryChannel := make(chan *LogEntry)
+	// fileLog, error := os.Open(logFilePath)
+	// if error != nil {
+	// 	fmt.Printf("Error opening log file. Exiting...\n")
+	// 	return
+	// }
+	// go reader(bufio.NewReader(fileLog), entryChannel)
 	go reader(bufio.NewReader(os.Stdin), entryChannel)
 	go sender(serverEndpoint, clientName, entryChannel)
 	fmt.Printf("Sending logs to %s \n", serverEndpoint)
@@ -72,11 +79,14 @@ func reader(reader *bufio.Reader, entryChannel chan *LogEntry) {
 			}
 			text, _ := reader.ReadString('\n')
 			lineSlice := strings.Split(text, " ")
+			if len(lineSlice) < 13 {
+				continue
+			}
 			logEntry.Timestamp = strings.Join(lineSlice[:2], " ")
 			switch lineSlice[2] {
 			case "MultiChainMiner:":
 				logEntry.Verb = BlockMined
-				logEntry.Block.Hash = lineSlice[6]
+				logEntry.Block.Hash = strings.Split(lineSlice[6], ",")[0]
 				logEntry.Block.Heigth, _ = strconv.Atoi(strings.Split(lineSlice[10], ",")[0])
 				logEntry.Block.NTx, _ = strconv.Atoi(lineSlice[12])
 			case "UpdateTip:":
@@ -95,7 +105,7 @@ func reader(reader *bufio.Reader, entryChannel chan *LogEntry) {
 func sender(url string, clientName string, entryChannel chan *LogEntry) {
 	for logEntry := range entryChannel {
 		logEntry.NodeName = clientName
-		fmt.Printf("%s %d\n", logEntry.Timestamp, logEntry.Block.Heigth)
+		fmt.Printf("%s %s %d\n", logEntry.Timestamp, logEntry.Verb, logEntry.Block.Heigth)
 		logData, _ := json.Marshal(*logEntry)
 		_, err := http.Post(url, "application/json", bytes.NewReader(logData))
 		if err != nil {

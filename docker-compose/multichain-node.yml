@@ -15,10 +15,17 @@ services:
       - "8080:8080"
     volumes:
       - ${CHAIN_DATADIR}:/root/${CHAIN_NAME}
-    command: "python3 /root/node-controller.py"
+    command: python3 /root/node-controller.py
     environment:
       - NODE_HOST=node
       - CHAIN_NAME # must be the same as pointed in root folder
     # restart: on-failure
+    depends_on:
+      - node
+  logger:
+    image: russanto/bm-btc-multichain-logger
+    volumes:
+      - ${CHAIN_DATADIR}:/root/${CHAIN_NAME}
+    command: /bin/sh -c "tail -f /root/${CHAIN_NAME}/debug.log | /root/client http://${LOG_COLLECTOR_HOST}:${LOG_COLLECTOR_PORT} ${NODE_NAME}"
     depends_on:
       - node

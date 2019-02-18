@@ -11,14 +11,7 @@ import (
 
 var maxLogEntryPerWorker uint = 2
 var initialBlockAllocation = 300
-var nodesToWaitBeforePrint = 1
-
-// Node holds information about node partecipating in blockchain network
-type Node struct {
-	name      string
-	ip        string
-	lastBlock *Block
-}
+var nodesToWaitBeforePrint = 3
 
 // LogEntry represents an entry in the debug.log
 type LogEntry struct {
@@ -62,6 +55,7 @@ func main() {
 	}
 
 	go sorter(logEntryProcessQueue)
+	go delayPrinter(computedDelayQueue)
 
 	http.HandleFunc("/", logEndpointHandler)
 	fmt.Print("Starting server at port 80\n")
@@ -70,6 +64,7 @@ func main() {
 }
 
 func sorter(processQueue chan *LogEntry) {
+	workersCount := 0
 	nodesCount := uint(0)
 	nodes := make(map[string]chan *LogEntry, 10)
 	var currentQueue chan *LogEntry
@@ -80,17 +75,17 @@ func sorter(processQueue chan *LogEntry) {
 		} else {
 			if nodesCount%maxLogEntryPerWorker == 0 {
 				currentQueue = make(chan *LogEntry)
-				go logEntryWorker(currentQueue)
-			} else {
-				nodes[logEntry.NodeName] = currentQueue
+				workersCount++
+				go logEntryWorker(workersCount, currentQueue)
 			}
+			nodes[logEntry.NodeName] = currentQueue
 			currentQueue <- logEntry
 			nodesCount++
 		}
 	}
 }
 
-func logEntryWorker(processQueue chan *LogEntry) {
+func logEntryWorker(workerID int, processQueue chan *LogEntry) {
 	nodes := make(map[string]*Node)
 	var node *Node
 	var exists bool
@@ -99,6 +94,7 @@ func logEntryWorker(processQueue chan *LogEntry) {
 		timestamp, _ = time.Parse("2006-01-02 15:04:05.000", logEntry.Timestamp)
 		node, exists = nodes[logEntry.NodeName]
 		if !exists {
+			fmt.Printf("[Worker %d] Added node %s\n", workerID, logEntry.NodeName)
 			node = &Node{
 				name: logEntry.NodeName,
 				ip:   logEntry.fromIP}
@@ -109,19 +105,25 @@ func logEntryWorker(processQueue chan *LogEntry) {
 		case BlockMined:
 			if !exists {
 				block = NewBlock(logEntry.Block.Hash, logEntry.Block.Height, node, node.lastBlock, timestamp)
+				fmt.Printf("[%s] Block %d: Mined\n", node.name, logEntry.Block.Height)
 			} else {
-				block.miner = node
-				// Should manage delay calulation for this case
+				computedDelayQueue <- blockDelayCount{
+					block:      block,
+					delayCount: block.SetMiner(node, timestamp)}
+				fmt.Printf("[%s] Block %d: Updated miner\n", node.name, logEntry.Block.Height)
 			}
 		case BlockAdded:
+			node.lastBlock = block
 			if exists {
+				fmt.Printf("[%s] Block %d: Sent update request\n", node.name, logEntry.Block.Height)
 				computedDelayQueue <- blockDelayCount{
 					block:      block,
 					delayCount: block.CalculateDelay(logEntry.NodeName, timestamp)}
 			} else {
 				block = NewBlock(logEntry.Block.Hash, logEntry.Block.Height, nil, node.lastBlock, timestamp)
+				block.CalculateDelay(logEntry.NodeName, timestamp)
+				fmt.Printf("[%s] Block %d: Created without miner\n", node.name, logEntry.Block.Height)
 			}
-			node.lastBlock = block
 		}
 	}
 }
@@ -129,7 +131,12 @@ func logEntryWorker(processQueue chan *LogEntry) {
 func delayPrinter(delayQueue chan blockDelayCount) {
 	for delayCount := range delayQueue {
 		if delayCount.delayCount >= nodesToWaitBeforePrint {
-			fmt.Printf("Block %d propagated with %d ms of delay\n", delayCount.block.heigth, delayCount.delayCount)
+			delays := delayCount.block.GetDelays()
+			fmt.Printf("------- Block %d ---------\n", delayCount.block.heigth)
+			for key, value := range delays {
+				fmt.Printf("- %s: %d\n", key, value/1000000)
+			}
+			fmt.Printf("-------------------------\n")
 		}
 	}
 }
