@@ -1,3 +1,7 @@
 log-analyzer/.cache/*
 log-analyzer/.ash_history
 \.DS_Store
+
+__pycache__/
+
+tmp/
