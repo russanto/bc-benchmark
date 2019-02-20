@@ -26,12 +26,6 @@ type LogEntry struct {
 	fromIP   string
 }
 
-// Verb constants
-const (
-	BlockMined = "block_mined" // New block mined
-	BlockAdded = "block_added" // Block added to chain
-)
-
 func main() {
 
 	logEntryProcessQueue := make(chan *LogEntry, 100)
@@ -54,10 +48,17 @@ func main() {
 		logEntryProcessQueue <- &logEntry
 	}
 
+	hub := newHub()
+
 	go sorter(logEntryProcessQueue)
-	go delayPrinter(computedDelayQueue)
+	go delayPrinter(computedDelayQueue, hub.broadcast)
+	go hub.run()
 
 	http.HandleFunc("/", logEndpointHandler)
+	http.HandleFunc("/follow", serveHome)
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		serveWs(hub, w, r)
+	})
 	fmt.Print("Starting server at port 80\n")
 	log.Fatal(http.ListenAndServe(":80", nil))
 
@@ -92,6 +93,7 @@ func logEntryWorker(workerID int, processQueue chan *LogEntry) {
 	var timestamp time.Time
 	for logEntry := range processQueue {
 		timestamp, _ = time.Parse("2006-01-02 15:04:05.000", logEntry.Timestamp)
+
 		node, exists = nodes[logEntry.NodeName]
 		if !exists {
 			fmt.Printf("[Worker %d] Added node %s\n", workerID, logEntry.NodeName)
@@ -100,6 +102,7 @@ func logEntryWorker(workerID int, processQueue chan *LogEntry) {
 				ip:   logEntry.fromIP}
 			nodes[logEntry.NodeName] = node
 		}
+
 		block, exists := GetBlock(logEntry.Block.Hash)
 		switch logEntry.Verb {
 		case BlockMined:
@@ -128,15 +131,31 @@ func logEntryWorker(workerID int, processQueue chan *LogEntry) {
 	}
 }
 
-func delayPrinter(delayQueue chan blockDelayCount) {
+func delayPrinter(delayQueue chan blockDelayCount, delayAnnounceQueue chan MessageType) {
 	for delayCount := range delayQueue {
-		if delayCount.delayCount >= nodesToWaitBeforePrint {
+		if delayCount.delayCount >= nodesToWaitBeforePrint { // Se > allora c'è stato un rollback considerando che nodesToWaitBeforePrint sono tutti
 			delays := delayCount.block.GetDelays()
 			fmt.Printf("------- Block %d ---------\n", delayCount.block.heigth)
 			for key, value := range delays {
 				fmt.Printf("- %s: %d\n", key, value/1000000)
 			}
 			fmt.Printf("-------------------------\n")
+			delayAnnounceQueue <- MessageType{
+				Height: delayCount.block.Heigth(),
+				Delays: delays}
 		}
 	}
+}
+
+func serveHome(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.URL)
+	if r.URL.Path != "/follow" {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	http.ServeFile(w, r, "home.html")
 }

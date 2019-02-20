@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Propagation charts</title>
+<script type="text/javascript">
+    window.onload = function () {
+
+        var chartAverage = new CanvasJS.Chart("chartContainerAverage", {
+            title :{
+                text: "Block propagation average time"
+            },
+            axisY: {
+                includeZero: false,
+                title: "ms"
+            },
+            axisX: {
+                includeZero: false,
+                interval: 1,
+                title: "Block heigth"
+            },      
+            data: [{
+                type: "line",
+                dataPoints: []
+            }]
+        });
+
+        var chartMax = new CanvasJS.Chart("chartContainerMaximum", {
+            title :{
+                text: "Block propagation maximum time"
+            },
+            axisY: {
+                includeZero: false,
+                title: "ms"
+            },
+            axisX: {
+                includeZero: false,
+                interval: 1,
+                title: "Block heigth"
+            },      
+            data: [{
+                type: "line",
+                dataPoints: []
+            }]
+        });
+
+        var chartMin = new CanvasJS.Chart("chartContainerMinimum", {
+            title :{
+                text: "Block propagation minimum time"
+            },
+            axisY: {
+                includeZero: false,
+                title: "ms"
+            },
+            axisX: {
+                includeZero: false,
+                interval: 1,
+                title: "Block heigth"
+            },      
+            data: [{
+                type: "line",
+                dataPoints: []
+            }]
+        });
+
+        var xVal = 0;
+        var yVal = 100;
+        var dataLength = 20; // number of dataPoints visible at any point
+
+        var updateChart = function (chart, x, y) {
+            chart.options.data[0].dataPoints.push({x: x, y: y});
+            chart.render();
+        };
+
+        chartAverage.render();
+        chartMax.render();
+        chartMin.render();
+    
+        if (window["WebSocket"]) {
+            conn = new WebSocket("ws://" + document.location.host + "/ws");
+            conn.onclose = function (evt) {
+                console.log('Connection closed.');
+            };
+            conn.onmessage = function (evt) {
+                console.log(evt);
+                var message = JSON.parse(evt.data);
+                
+                var minerTime = 10000000000;
+                var miner;
+                Object.keys(message.delays).forEach(key => {
+                    if (message.delays[key] < minerTime) {
+                        miner = key;
+                        minerTime = message.delays[key]
+                    }
+                });
+
+                var min = 10000000000;
+                var minKey;
+                Object.keys(message.delays).forEach(key => {
+                    if (message.delays[key] < min && key != miner) {
+                        minKey = key;
+                        min = message.delays[key]
+                    }
+                });
+
+                var max = 0;
+                var maxKey;
+                Object.keys(message.delays).forEach(key => {
+                    if (message.delays[key] > max) {
+                        maxKey = key;
+                        max = message.delays[key]
+                    }
+                });
+
+                var sum = 0;
+                Object.keys(message.delays).forEach(key => {
+                    if (key != miner) {
+                        sum += message.delays[key];
+                    }
+                });
+                var average = sum/((Object.keys(message.delays).length - 1)*1000000);
+
+                updateChart(chartMax, message.height, max/1000000);
+                updateChart(chartMin, message.height, min/1000000);
+                updateChart(chartAverage, message.height, average);
+            };
+        } else {
+            console.log('Your browser does not support WebSockets.');
+        }
+    };
+</script>
+</head>
+<body>
+    <div id="chartContainerAverage" style="height: 300px; width: 100%;"></div>
+    <div id="chartContainerMaximum" style="height: 300px; width: 100%;"></div>
+    <div id="chartContainerMinimum" style="height: 300px; width: 100%;"></div>
+    <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>    
+</body>
+</html>

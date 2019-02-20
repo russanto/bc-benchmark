@@ -11,11 +11,16 @@ type Block struct {
 	previous *Block
 	heigth   uint
 	hash     string
-	nTx      uint
 	miner    *Node
 	minedAt  time.Time
 	delays   map[string]time.Duration
 }
+
+// Verb constants
+const (
+	BlockMined = "block_mined" // New block mined
+	BlockAdded = "block_added" // Block added to chain
+)
 
 type blockDelayCount struct {
 	block      *Block
@@ -64,6 +69,21 @@ func GetBlock(hash string) (*Block, bool) {
 // 	blocks[hash] = b
 // 	blocksRWMutex.Unlock()
 // }
+
+// Heigth height getter. It is thread safe because height can only be written when a block is created.
+func (b *Block) Heigth() uint {
+	return b.heigth
+}
+
+// Hash height getter. It is thread safe because hash can only be written when a block is created.
+func (b *Block) Hash() string {
+	return b.hash
+}
+
+// Previous height getter. It is thread safe because previous can only be written when a block is created.
+func (b *Block) Previous() *Block {
+	return b.previous
+}
 
 // SetMiner update delays with the right miner timestamp. It is thread safe.
 func (b *Block) SetMiner(node *Node, minedAt time.Time) int {

@@ -5,12 +5,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Block is the block struct info in which we are interested in
@@ -42,7 +42,7 @@ func main() {
 	clientName := os.Args[2]
 
 	fmt.Print("Start\n")
-	entryChannel := make(chan *LogEntry)
+	entryChannel := make(chan *LogEntry, 10)
 	// fileLog, error := os.Open(logFilePath)
 	// if error != nil {
 	// 	fmt.Printf("Error opening log file. Exiting...\n")
@@ -109,7 +109,8 @@ func sender(url string, clientName string, entryChannel chan *LogEntry) {
 		logData, _ := json.Marshal(*logEntry)
 		_, err := http.Post(url, "application/json", bytes.NewReader(logData))
 		if err != nil {
-			log.Fatalln(err)
+			entryChannel <- logEntry
+			time.Sleep(500000000)
 		}
 	}
 }
