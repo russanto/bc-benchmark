@@ -1,5 +1,6 @@
 from fabric import Connection
 import ipaddress
+import requests
 
 class NodeManager:
 
@@ -43,6 +44,14 @@ class NodeManager:
         for node_index in range(1, len(self.nodes_ips)):
             self._log("Creating node", str(self.nodes_ips[node_index]))
             self._create_node(self.nodes_ssh_connections[node_index], "NODE" + str(node_index))
+
+    def fullfil(self, sleep=0):
+        for ip in self.nodes_ips:
+            sys.stdout.write("-----> Starting tx generation on %s:" % str(ip))
+            sys.stdout.flush()
+            response = requests.get("http://" + str(ip) + "/fullfil")
+            print("%d" % response.status_code)
+            time.sleep(sleep)
     
     def start(self):
         self._start_seed(self.nodes_ssh_connections[0], "SEED")
