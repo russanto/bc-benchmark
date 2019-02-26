@@ -16,6 +16,8 @@ class NodeManager:
     manager_tmp_directory = "./tmp/"
     manager_conf_directory = "./conf/"
 
+    log_collector_host = "192.168.20.1"
+
     def __init__(self, seed_ip, start_ip, end_ip):
         self.nodes_ips.append(ipaddress.IPv4Address(seed_ip))
         start = ipaddress.IPv4Address(start_ip)
@@ -77,7 +79,7 @@ class NodeManager:
             + self.bc_name + " "
             + datadir + " "
             + str(node_index) + " "
-            + "192.168.20.1 "
+            + self.log_collector_host + " "
             + "80" )
         print(seed_creation.stdout)
         change_permission_to_params = connection.run("sudo chmod 755 " + datadir + '/params.dat')
@@ -110,7 +112,7 @@ class NodeManager:
             + str(self.nodes_ips[0]) + " "
             + "7411 "
             + str(node_index) + " "
-            + "192.168.20.1 "
+            + self.log_collector_host + " "
             + "80" )
         print(node_creation.stdout)
     
@@ -119,7 +121,7 @@ class NodeManager:
             + self.bc_name + " "
             + self._get_datadir() + " "
             + str(node_index) + " "
-            + "192.168.20.1 "
+            + self.log_collector_host + " "
             + "80" )
         print(seed_creation.stdout)
 
@@ -130,7 +132,7 @@ class NodeManager:
             + str(self.nodes_ips[0]) + " "
             + "7411 "
             + str(node_index) + " "
-            + "192.168.20.1 "
+            + self.log_collector_host + " "
             + "80" )
         print(node_creation.stdout)
 
