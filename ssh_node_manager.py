@@ -6,10 +6,12 @@ class NodeManager:
     nodes_ips = []
     nodes_ssh_connections = []
 
+    default_conf_file = "./conf/manager.conf"
+
     ssh_username = "root"
 
     bc_datadir = '/root/.multichain/'
-    bc_name = 'benchmark'
+    bc_name = 'benchmark' # Before being to change you have to change it also in params.dat
 
     compose_dir = '/root/docker-compose/'
 
@@ -54,6 +56,24 @@ class NodeManager:
     def clean(self):
         for cnx in self.nodes_ssh_connections:
             self._clean(cnx)
+
+    def parse_conf(self, conf_file=""):
+        filename = self.default_conf_file
+        if conf_file != "":
+            filename = conf_file
+        for line in open(filename):
+            stripped = line.strip()
+            conf_data = stripped.split('=')
+            if conf_data[0] == "username":
+                self.ssh_username = conf_data[1]
+            elif conf_data[0] == "datadir":
+                self.bc_datadir = conf_data[1]
+            elif conf_data[0] == "composedir":
+                self.compose_dir = conf_data[1]
+            elif conf_data[0] == "collector":
+                self.log_collector_host = conf_data[1]
+        return
+
         
     def _create_seed(self, connection, node_index):
         datadir = self._get_datadir()
