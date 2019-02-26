@@ -23,7 +23,7 @@ while start_block_size <= end_block_size:
     manager.fullfil()
     time.sleep(seconds)
     manager.stop()
-    subprocess.run("docker stop benchmark-log-collector")
-    subprocess.run("docker rm benchmark-log-collector")
+    subprocess.run("docker stop benchmark-log-collector", shell=True)
+    subprocess.run("docker rm benchmark-log-collector", shell=True)
     print("-----> Server stopped")
     start_block_size += step_block_size
