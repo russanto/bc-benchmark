@@ -17,7 +17,7 @@ manager = NodeManagerHosts(hosts_filename)
 while start_block_size <= end_block_size:
     print("-----> Starting benchmark at %d block size" % start_block_size)
     subprocess.run("sed -i -e '21s/maximum-block-size = [0-9]*/maximum-block-size = %d/' ./conf/params.dat" % start_block_size, shell=True)
-    subprocess.run("docker run -d -p 80:80 -v $PWD/csv:/root/csv --name benchmark-log-collector russanto/bm-btc-multichain-server /root/server %d /root/csv/%d.csv" % (len(manager.nodes_ips), start_block_size))
+    subprocess.run("docker run -d -p 80:80 -v $PWD/csv:/root/csv --name benchmark-log-collector russanto/bm-btc-multichain-server /root/server %d /root/csv/%d.csv" % (len(manager.nodes_ips), start_block_size), shell=True)
     manager.clean()
     manager.create()
     manager.fullfil()
