@@ -20,7 +20,8 @@ class NodeManager:
 
     log_collector_host = "192.168.20.1"
 
-    def __init__(self, seed_ip, start_ip, end_ip):
+    def __init__(self, seed_ip, start_ip, end_ip, conf_file=""):
+        self._parse_conf(conf_file)
         self.nodes_ips.append(ipaddress.IPv4Address(seed_ip))
         start = ipaddress.IPv4Address(start_ip)
         end = ipaddress.IPv4Address(end_ip)
@@ -57,7 +58,7 @@ class NodeManager:
         for cnx in self.nodes_ssh_connections:
             self._clean(cnx)
 
-    def parse_conf(self, conf_file=""):
+    def _parse_conf(self, conf_file=""):
         filename = self.default_conf_file
         if conf_file != "":
             filename = conf_file

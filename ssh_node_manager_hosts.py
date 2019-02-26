@@ -5,7 +5,8 @@ from ssh_node_manager import NodeManager
 import ipaddress
 
 class NodeManagerHosts(NodeManager):
-    def __init__(self, hosts_filename):
+    def __init__(self, hosts_filename, conf_filename=""):
+        self._parse_conf(conf_filename)
         for line in open(hosts_filename):
             stripped = line.strip()
             self.nodes_ssh_connections.append(Connection(
@@ -25,7 +26,6 @@ if __name__ == "__main__":
     print("-----> Performing a clean run for %d seconds" % seconds)
 
     manager = NodeManagerHosts(hosts_filename)
-    manager.parse_conf()
     manager.clean()
     manager.create()
     time.sleep(seconds)
