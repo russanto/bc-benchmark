@@ -24,8 +24,10 @@ services:
       - node
   logger:
     image: russanto/bm-btc-multichain-logger
+    ports:
+      - "80:80"
     volumes:
       - ${CHAIN_DATADIR}:/root/${CHAIN_NAME}
-    command: /bin/sh -c "tail -f /root/${CHAIN_NAME}/debug.log | /root/client http://${LOG_COLLECTOR_HOST}:${LOG_COLLECTOR_PORT} ${NODE_NAME}"
+    command: /bin/sh -c "tail -f /root/${CHAIN_NAME}/debug.log | /root/client http://${LOG_COLLECTOR_HOST}:${LOG_COLLECTOR_PORT} ${NODE_NAME} node"
     depends_on:
       - node

@@ -13,12 +13,12 @@
 # Basic chain parameters
 
 chain-protocol = bitcoin                # Chain protocol: multichain (permissions, native assets) or bitcoin
-chain-description = benchmark             # Chain description, embedded in genesis block coinbase, max 90 chars.
+chain-description = benchmark           # Chain description, embedded in genesis block coinbase, max 90 chars.
 root-stream-name = root                 # Root stream name, blank means no root stream.
 root-stream-open = true                 # Allow anyone to publish in root stream
 chain-is-testnet = false                # Content of the 'testnet' field of API responses, for compatibility.
 target-block-time = 20                  # Target time between blocks (transaction confirmation delay), seconds. (2 - 86400)
-maximum-block-size = 2097152            # Maximum block size in bytes. (1000 - 1000000000)
+maximum-block-size = 2000000            # Maximum block size in bytes. (1000 - 1000000000)
 
 # Global permissions
 
@@ -38,7 +38,7 @@ allow-multisig-outputs = true           # Allow bare multisignature scripts, rar
 
 # Consensus requirements
 
-setup-first-blocks = 60                 # Length of initial setup phase in blocks, in which mining-diversity,
+setup-first-blocks = 5                 # Length of initial setup phase in blocks, in which mining-diversity,
                                         # admin-consensus-* and mining-requires-peers are not applied. (1 - 31536000)
 mining-diversity = 0.3                  # Miners must wait <mining-diversity>*<active miners> between blocks. (0 - 1)
 admin-consensus-upgrade = 0.5           # <admin-consensus-upgrade>*<active admins> needed to upgrade the chain. (0 - 1)
@@ -70,7 +70,7 @@ native-currency-multiple = 1000         # Number of raw units of native currency
 # Advanced mining parameters
 
 skip-pow-check = false                  # Skip checking whether block hashes demonstrate proof of work.
-pow-minimum-bits = 3                    # Initial and minimum proof of work difficulty, in leading zero bits. (1 - 32)
+pow-minimum-bits = 12                   # Initial and minimum proof of work difficulty, in leading zero bits. (1 - 32)
 target-adjust-freq = 300                # Interval between proof of work difficulty adjustments, in seconds, if negative - never adjusted. (-1 - 4294967295)
 allow-min-difficulty-blocks = false     # Allow lower difficulty blocks if none after 2*<target-block-time>.
 
