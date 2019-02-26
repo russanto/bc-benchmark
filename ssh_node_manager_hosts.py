@@ -1,5 +1,3 @@
-#!/usr/local/bin/python3
-
 from fabric import Connection
 from ssh_node_manager import NodeManager
 import ipaddress
