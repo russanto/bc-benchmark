@@ -1,4 +1,5 @@
 from fabric import Connection
+from http.client import HTTPConnection
 import ipaddress
 import requests
 import sys, time
@@ -21,6 +22,7 @@ class NodeManager:
     manager_conf_directory = "./conf/"
 
     log_collector_host = "192.168.20.1"
+    log_directory = "./logs/"
 
     def __init__(self, seed_ip, start_ip, end_ip, conf_file=""):
         self._parse_conf(conf_file)
@@ -54,6 +56,21 @@ class NodeManager:
             print("%d" % response.status_code)
             time.sleep(sleep)
     
+    def get_logs(self, label=""):
+        for ip in self.nodes_ips:
+            connection = HTTPConnection(str(ip), 8080)
+            connection.request('GET', '/')
+            response = connection.getresponse()
+
+            if response.status == 200:
+                with open(self.log_directory + label + '-' + ip + '.log', 'w') as outputlog:
+                    outputlog.write(response.read().decode('utf-8'))
+                    print('OK')
+                    continue
+                print('Error writing file')
+            else:
+                print('Error - HTTP Status: -> %d' % response.status)
+    
     def start(self):
         self._start_seed(self.nodes_ssh_connections[0], "SEED")
         for index in range(1, len(self.nodes_ssh_connections)):
@@ -83,6 +100,8 @@ class NodeManager:
                 self.compose_dir = conf_data[1]
             elif conf_data[0] == "collector":
                 self.log_collector_host = conf_data[1]
+            elif conf_data[0] == "logsdir":
+                self.log_directory = conf_data[1]
         return
 
         

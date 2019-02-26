@@ -22,6 +22,7 @@ while start_block_size <= end_block_size:
     manager.create()
     manager.fullfil()
     time.sleep(seconds)
+    manager.get_logs(str(start_block_size))
     manager.stop()
     subprocess.run("docker stop benchmark-log-collector", shell=True)
     subprocess.run("docker rm benchmark-log-collector", shell=True)
