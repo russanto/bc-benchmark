@@ -8,7 +8,7 @@ services:
     volumes:
       - ${CHAIN_DATADIR}:/root/.multichain/${CHAIN_NAME}
     # restart: on-failure
-    command: multichaind ${CHAIN_NAME}@${SEED_NODE_HOST}:${SEED_NODE_PORT} -logtimemillis
+    command: multichaind ${CHAIN_NAME}@${SEED_NODE_HOST}:${SEED_NODE_PORT} -logtimemillis -shrinkdebugfile=0
   controller:
     image: russanto/bm-btc-multichain-controller
     ports:
