@@ -11,6 +11,7 @@ type Block struct {
 	previous *Block
 	heigth   uint
 	hash     string
+	size     uint
 	miner    *Node
 	minedAt  time.Time
 	delays   map[string]time.Duration
@@ -33,11 +34,12 @@ var blocks = make(map[string]*Block)
 var blocksRWMutex = sync.RWMutex{}
 
 // NewBlock creates a new block and returns its pointer
-func NewBlock(hash string, height uint, miner *Node, previous *Block, timestamp time.Time) *Block {
+func NewBlock(hash string, height uint, size uint, miner *Node, previous *Block, timestamp time.Time) *Block {
 	block := &Block{
 		previous: previous,
 		hash:     hash,
 		heigth:   height,
+		size:     size,
 		miner:    miner,
 		minedAt:  timestamp,
 		delays:   make(map[string]time.Duration)}
@@ -83,6 +85,22 @@ func (b *Block) Hash() string {
 // Previous height getter. It is thread safe because previous can only be written when a block is created.
 func (b *Block) Previous() *Block {
 	return b.previous
+}
+
+// Size of the block. It is thread safe.
+func (b *Block) Size() uint {
+	var size uint
+	b.RLock()
+	size = b.size
+	b.RUnlock()
+	return size
+}
+
+// SetSize sets the siza in a thread safe mode.
+func (b *Block) SetSize(size uint) {
+	b.Lock()
+	b.size = size
+	b.Unlock()
 }
 
 // SetMiner update delays with the right miner timestamp. It is thread safe.

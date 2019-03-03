@@ -4,6 +4,7 @@ import "time"
 
 // MessageType is the type of message to be sent
 type MessageType struct {
+	Size   uint                     `json:"size"`
 	Height uint                     `json:"height"`
 	Delays map[string]time.Duration `json:"delays"`
 }
