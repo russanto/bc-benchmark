@@ -78,8 +78,10 @@ class NodeManager:
 
     def stop(self):
         self._stop_seed(self.nodes_ssh_connections[0])
+        self.nodes_ssh_connections[0].close()
         for i in range(1, len(self.nodes_ssh_connections)):
             self._stop_node(self.nodes_ssh_connections[i])
+            self.nodes_ssh_connections[i].close()
     
     def clean(self):
         for cnx in self.nodes_ssh_connections:

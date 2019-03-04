@@ -13,6 +13,7 @@ end_block_size = 10485760
 step_block_size = 512000
 
 manager = NodeManagerHosts(hosts_filename)
+manager.log_collector_host = sys.argv[3]
 
 while start_block_size <= end_block_size:
     print("-----> Starting benchmark at %d block size" % start_block_size)
