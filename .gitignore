@@ -5,3 +5,9 @@ log-analyzer/.ash_history
 __pycache__/
 
 tmp/
+
+log-analyzer/bin/
+log-analyzer/pkg/
+log-analyzer/csv/
+
+\.vscode/
