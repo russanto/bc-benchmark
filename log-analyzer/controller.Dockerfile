@@ -1,9 +1,7 @@
 FROM golang as builder
 COPY src/controller /go
-COPY src/github.com /go/src/github.com
-WORKDIR /go/src/github.com
-RUN cp -r russanto/ ethereum
 WORKDIR /go
+RUN go get "github.com/ethereum/go-ethereum/rpc" && cp lib/http.go src/github.com/ethereum/go-ethereum/rpc
 RUN go build -o client
 
 FROM debian

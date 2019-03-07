@@ -16,21 +16,6 @@ type ResponseGetMempoolInfo struct {
 
 type ResponseSendTransaction string
 
-// func main() {
-// 	checkerClient, _ := rpc.Dial("http://192.168.20.139:7410")
-// 	senderClient, _ := rpc.Dial("http://192.168.20.139:7410")
-
-// 	senderSemaphore := make(chan int, 1)
-
-// 	go sendTxs(senderClient, 1000, "18pc9Q6DB9t2aBWEEuXZBgQHrEVMWSSKs5DTpi", senderSemaphore)
-// 	go mempoolSizeChecker(checkerClient, 1000, 5, senderSemaphore)
-// 	signalChannel := make(chan os.Signal, 1)
-// 	signal.Notify(signalChannel, os.Interrupt)
-// 	<-signalChannel
-// 	close(senderSemaphore)
-// }
-
-// "1QDR3Vjiq4bJj4ufPVzVdT7R2K5nxxWpL8UMxn"
 func sendTxs(client *rpc.Client, n int, addressTo string, semaphore chan int) {
 	var result ResponseSendTransaction
 	for range semaphore {
