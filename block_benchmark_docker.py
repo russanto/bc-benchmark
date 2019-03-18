@@ -15,6 +15,7 @@ step_block_size = 512000
 manager = NodeManagerHosts(hosts_filename)
 manager.log_collector_host = sys.argv[3]
 
+manager.connect()
 while start_block_size <= end_block_size:
     print("-----> Starting benchmark at %d block size" % start_block_size)
     subprocess.run("sed -i -e '21s/maximum-block-size = [0-9]*/maximum-block-size = %d/' ./conf/params.dat" % start_block_size, shell=True)

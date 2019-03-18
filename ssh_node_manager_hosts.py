@@ -24,6 +24,7 @@ if __name__ == "__main__":
     print("-----> Performing a clean run for %d seconds" % seconds)
 
     manager = NodeManagerHosts(hosts_filename)
+    manager.connect()
     manager.clean()
     manager.create()
     time.sleep(seconds)

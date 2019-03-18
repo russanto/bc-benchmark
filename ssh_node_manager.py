@@ -31,6 +31,8 @@ class NodeManager:
         end = ipaddress.IPv4Address(end_ip)
         for ip_int in range(int(start), int(end) + 1):
             self.nodes_ips.append(ipaddress.IPv4Address(ip_int))
+
+    def connect(self):
         for ip in self.nodes_ips:
             self.nodes_ssh_connections.append(Connection(
                     host=str(ip),
