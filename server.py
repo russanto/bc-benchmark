@@ -1,12 +1,18 @@
 from flask import Flask
+import os
 import queue
 import sys
 
-from host_writer import HostWriter
+from block_benchmark_handler import BlockBenchmarkHandler
+
+nodes_count = int(os.environ.get("NODES_COUNT", 2))
+logger_host = os.environ.get("LOGGER_HOST", "")
+if logger_host == "":
+    print("[WARNING] Logging block propagation won't work because no logging host has been set")
 
 app = Flask("HostWriter")
 host_queue = queue.Queue()
-writer = HostWriter(host_queue, int(sys.argv[2]))
+writer = BlockBenchmarkHandler(host_queue, nodes_count, logger_host)
 writer.start()
 
 @app.route('/ready/<string:ip_ready>')
