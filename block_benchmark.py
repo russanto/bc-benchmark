@@ -6,7 +6,7 @@ import sys
 import time
 
 class BlockBenchmark:
-    def __init__(self, start_size=1048576, end_size=2048576, step_size=512000):
+    def __init__(self, start_size=1048576, end_size=1048576, step_size=512000):
         self.start_size = start_size
         self.end_size = end_size
         self.step_size = step_size
