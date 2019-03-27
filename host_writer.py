@@ -20,5 +20,8 @@ class HostWriter(Thread):
                 self.host_queue.put("")
             host = self.host_queue.get()
         host_file.close()
-        benchmark = BlockBenchmark()
-        benchmark.start("hosts", sys.argv[1])
+        if self.host_count > 0:
+            benchmark = BlockBenchmark()
+            benchmark.start("hosts", sys.argv[1], int(sys.argv[3]))
+        else:
+            print("Execution aborted because no host was ready")
