@@ -5,7 +5,7 @@ from threading import Lock, Thread
 
 class NodeOrganizer(Thread):
     def __init__(self, ip_queue, n_deployers, conf_file):
-        super.__init__()
+        super().__init__()
         self.ip_queue = ip_queue
         self.seed_queue = queue.Queue(maxsize=1)
         self.deploy_queue = queue.Queue()
@@ -67,7 +67,7 @@ class NodeDeployer(Thread):
     log_directory = "./logs/"
 
     def __init__(self, id, ip_queue, conf_file=""):
-        super.__init__()
+        super().__init__()
         self.ip_queue = ip_queue
         self.logger = logging.getLogger("Deployer-%d" % id)
         self._parse_conf(conf_file)
