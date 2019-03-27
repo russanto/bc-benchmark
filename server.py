@@ -12,3 +12,4 @@ def show_post(ip_ready):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
+    del manager

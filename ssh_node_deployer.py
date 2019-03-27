@@ -42,6 +42,7 @@ class NodeOrganizer(Thread):
                     "id": NodeDeployer.NODE_TYPE_NODE + str(node_count)
                 })
             ip = self.ip_queue.get()
+        self.seed_queue.put({})
         for _ in range(len(self.threads)):
             self.deploy_queue.put({})
 

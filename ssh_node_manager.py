@@ -11,9 +11,15 @@ class NodeManager:
 
     def __init__(self, n_thread, conf_file=""):
         self.conf_file = conf_file
+        self.n_thread = n_thread
         self.deploy_queue = queue.Queue()
         self.node_organizer = NodeOrganizer(self.deploy_queue, n_thread, conf_file)
         self.node_organizer.start()
+    
+    def __del__(self):
+        self.deploy_queue.put("")
+        for _ in range(self.n_thread):
+            self.deploy_queue.put("")
     
     def add_node_ip(self, ip):
         self.deploy_queue.put(ip)
