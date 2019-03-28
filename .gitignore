@@ -10,4 +10,7 @@ log-analyzer/bin/
 log-analyzer/pkg/
 log-analyzer/csv/
 
+orchestration/ssh-keys/*
+orchestration/clouds.yaml
+
 \.vscode/
