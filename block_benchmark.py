@@ -1,11 +1,13 @@
 from ssh_node_manager_hosts import NodeManagerHosts
 import ipaddress
-import requests
 import subprocess
 import sys
 import time
 
 class BlockBenchmark:
+
+    csv_save_path = "/home/ubuntu"
+
     def __init__(self, start_size=1048576, end_size=1048576, step_size=512000):
         self.start_size = start_size
         self.end_size = end_size
@@ -19,7 +21,7 @@ class BlockBenchmark:
         while current_size <= self.end_size:
             print("-----> Starting benchmark at %d block size" % current_size)
             subprocess.run("sed -i -e '21s/maximum-block-size = [0-9]*/maximum-block-size = %d/' ./conf/params.dat" % current_size, shell=True)
-            subprocess.run("docker run -d -p 80:80 -v $PWD/csv:/root/csv --name benchmark-log-collector russanto/bm-btc-multichain-server /root/server %d /root/csv/%d.csv" % (len(self.manager.nodes_ips), current_size), shell=True)
+            subprocess.run("docker run -d -p 80:80 -v %s/csv:/root/csv --name benchmark-log-collector russanto/bm-btc-multichain-server /root/server %d /root/csv/%d.csv" % (self.csv_save_path, len(self.manager.nodes_ips), current_size), shell=True)
             self.manager.clean()
             self.manager.create()
             self.manager.fullfil()
