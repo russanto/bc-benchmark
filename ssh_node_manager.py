@@ -199,7 +199,7 @@ class NodeManager:
         print(node_stop.stdout)
 
     def _clean(self, cnx):
-        clean_datadir = cnx.run("rm -rf " + self.bc_datadir + self.bc_name)
+        clean_datadir = cnx.run("sudo rm -rf " + self.bc_datadir + self.bc_name)
         if clean_datadir.ok:
             self._log("Datadir successfully cleaned", cnx.original_host)
         else:
