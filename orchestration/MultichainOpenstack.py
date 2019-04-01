@@ -6,6 +6,7 @@ import uuid
 
 class MultichainOpenstack:
 
+    is_controller_deployed = False
     controller_port = 5000
     deployer_key_filename = "Deployer"
 
@@ -36,6 +37,7 @@ class MultichainOpenstack:
                 print("Not yet ready")
                 time.sleep(5)
         ssh_cnx.close()
+        self.is_controller_deployed = True
         return server
 
 
@@ -44,20 +46,20 @@ class MultichainOpenstack:
         nodes_count = int(network_configuration["nodes"]["count"])
 
         # Create controller instance
-        # controller = self.deploy_controller()
+        controller = self.deploy_controller()
 
-        # started = False
-        # while not started:
-        #     try:
-        #         response = requests.get("http://%s:%d/start/%d" % (controller["public_v4"], self.controller_port, nodes_count))
-        #         if response == "no":
-        #             print("Already started. No action done.")
-        #         else:
-        #             started = True
-        #     except requests.exceptions.ConnectionError:
-        #         print("Server controller not available")
-        #         time.sleep(5)
-        # print("Logger: %s" % response.text)
+        # Start multichain network. It is a temporary solution.
+        started = False
+        while not started:
+            try:
+                response = requests.get("http://%s:%d/start/%d" % (controller["public_v4"], self.controller_port, nodes_count))
+                if response == "no":
+                    print("Already started. No action done.")
+                else:
+                    started = True
+            except requests.exceptions.ConnectionError:
+                print("Server controller not available")
+                time.sleep(5)
 
         # Create server group
         group = self.connection.create_server_group("Multichain", ["anti-affinity"])
@@ -68,18 +70,13 @@ class MultichainOpenstack:
             "Node",
             image="Ubuntu18-Docker",
             flavor="m1.small",
-            userdata=self.get_nodes_init_script("172.10.0.4"),
+            userdata=self.get_nodes_init_script(controller["private_v4"]),
             group=group,
             min_count=nodes_count,
             max_count=nodes_count,
             key_name="Deployer"
         )
         self.connection.wait_for_server(server, timeout=300)
-
-        # print("--------------------------")
-        # for s in self.connection.list_servers(filters={"name": "node-[1-9]+"}):
-        #     print("Node: %s --> %s" % (s["name"], s["private_v4"]))
-
         return deploy_id
 
     def dismiss(self):
