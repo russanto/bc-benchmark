@@ -1,6 +1,11 @@
 import uuid
 
 class Blockchain:
+    '''
+    This class is the higher level of abstraction for a blockchain deploy. It takes the driver instances for
+    the compatible platforms and (this is a BIG todo) it uses some strategy to deploy nodes with them.
+    Moreover also blockchain topology should be implemented
+    '''
     def __init__(self, name):
         self.name = name
         self.instance_managers = {}
