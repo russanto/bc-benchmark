@@ -3,6 +3,7 @@ import queue
 import threading
 
 # TODO: Implement checks on received host
+# TODO: Implement hosts caching inside the class
 
 class HostManager:
         def __init__(self, host_file, overwrite=True):
@@ -16,9 +17,9 @@ class HostManager:
 
         def _writer(self):
                 if self.overwrite_previous_hosts:
-                        host_file = open(self.host_file, "w")
+                        host_file = open(self.host_file, "w", buffering=0)
                 else:
-                        host_file = open(self.host_file, "a")
+                        host_file = open(self.host_file, "a", buffering=0)
                 host = self.write_queue.get()
                 while host != "":
                         with self.host_file_lock:
