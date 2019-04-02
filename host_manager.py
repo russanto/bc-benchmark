@@ -9,6 +9,7 @@ class HostManager:
                 self.overwrite_previous_hosts = overwrite
                 self.host_file = host_file
                 self.host_file_lock = threading.Lock()
+                self._hosts = []
                 self.write_queue = queue.Queue()
                 self.logger = logging.getLogger("HostManager")
                 self.write_thread = threading.Thread(target=self._writer)
@@ -24,6 +25,7 @@ class HostManager:
                         with self.host_file_lock:
                                 host_file.write("%s\n" % host)
                                 self.logger.debug("[WriteHost] Write: " + host + "<--")
+                        self._hosts.append(host)
                         host = self.write_queue.get()
                 host_file.close()
         
@@ -31,13 +33,7 @@ class HostManager:
                 self.write_queue.put(host)
 
         def get_hosts(self):
-                hosts = []
-                with self.host_file_lock:
-                        for line in open(self.host_file, "r"):
-                                stripped = line.strip()
-                                hosts.append(stripped)
-                                self.logger.debug("[ReadHost] Read: " + stripped + "<--")
-                return hosts
+                return self._hosts[0:len(self._hosts)]
 
         def close(self):
                 self.write_queue.put("")
