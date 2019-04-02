@@ -14,6 +14,8 @@ if logger_host == "":
 
 app = Flask("BC-Orch-Controller")
 app.config["UPLOAD_FOLDER"] = "/root/uploads"
+if not os.path.exists(app.config["UPLOAD_FOLDER"]):
+    os.makedirs(app.config["UPLOAD_FOLDER"])
 
 host_manager = HostManager("hosts")
 bp_manager = None
