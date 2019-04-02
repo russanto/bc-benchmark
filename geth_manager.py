@@ -12,7 +12,14 @@ class GethManager:
         self.hosts = hosts
         self.enodes = []
 
-    def start(self, genesis_file):
+    def start(self, genesis_file, wait=True):
+        if wait:
+            self._start(genesis_file)
+        else:
+            start_th = Thread(target=self._start, args=(genesis_file,))
+            start_th.start()
+
+    def _start(self, genesis_file):
         for host in self.hosts:
             cnx = Connection(host=host, user=self.ssh_username)
             self.copy_genesis(cnx, genesis_file)

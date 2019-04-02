@@ -1,8 +1,10 @@
-from ssh_node_manager_hosts import NodeManagerHosts
 import ipaddress
+import logging
 import subprocess
 import sys
 import time
+
+from multichain_manager import MultichainManager
 
 class BlockBenchmark:
 
@@ -13,8 +15,8 @@ class BlockBenchmark:
         self.end_size = end_size
         self.step_size = step_size
 
-    def start(self, hosts_filename, log_collector_host, sim_time=120):
-        self.manager = NodeManagerHosts(hosts_filename)
+    def start(self, hosts, log_collector_host, sim_time=120):
+        self.manager = MultichainManager(hosts)
         self.manager.log_collector_host = log_collector_host
         self.manager.connect()
         current_size = self.start_size
@@ -32,3 +34,10 @@ class BlockBenchmark:
             subprocess.run("docker rm benchmark-log-collector", shell=True)
             print("-----> Server stopped")
             current_size += self.step_size
+
+
+if __name__ == "__main__":
+    from host_manager import HostManager
+    host_manager = HostManager("hosts", False)
+    mc_benchmark = BlockBenchmark()
+    mc_benchmark.start(host_manager.get_hosts(), sys.argv[1])

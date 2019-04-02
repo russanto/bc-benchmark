@@ -38,3 +38,6 @@ class HostManager:
                                 hosts.append(stripped)
                                 self.logger.debug("[ReadHost] Read: " + stripped + "<--")
                 return hosts
+
+        def close(self):
+                self.write_queue.put("")
