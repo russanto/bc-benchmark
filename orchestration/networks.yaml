@@ -1,4 +1,6 @@
 multichain:
   nodes:
-    count: 4
-    flavor: m1.small
+    - count: 4
+      pop: insa
+      flavor: m1.small
+    
