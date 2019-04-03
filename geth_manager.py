@@ -11,6 +11,8 @@ class GethManager:
     def __init__(self, hosts):
         self.hosts = hosts
         self.enodes = []
+        self.ssh_connections = []
+        self.logger = logging.getLogger("GethManager")
 
     def start(self, genesis_file, wait=True):
         if wait:
@@ -21,9 +23,15 @@ class GethManager:
 
     def _start(self, genesis_file):
         for host in self.hosts:
+            self.logger.info("Deploying on %s" % host)
             cnx = Connection(host=host, user=self.ssh_username)
             self.copy_genesis(cnx, genesis_file)
             self.start_node(cnx)
+            self.ssh_connections.append(cnx)
+            self.logger.info("Deployed %s" % host)
+        for cnx in self.ssh_connections: #TODO launch multiple parallel threads
+            self.connect_node(cnx, self.enodes)
+        
 
     def copy_genesis(self, connection, file):
         make_datadir = connection.run('mkdir -p ' + self.data_dir)
@@ -38,7 +46,12 @@ class GethManager:
         enode_cmd = connection.run("docker run -v %s:/root -t ethereum/client-go attach --exec \"console.log(admin.nodeInfo.enode)\"" % (self.data_dir), hide=True)
         enode = enode_cmd.stdout.split("\n")[1].replace("127.0.0.1", connection.host)
         self.enodes.append(enode)
-        
+
+    def connect_node(self, connection, enodes):
+        for enode in enodes:
+            add_cmd = connection.run("docker run -v %s:/root -t ethereum/client-go attach --exec \"admin.addPeer(%s)\"" % (self.data_dir, enode), hide=True)
+            self.logger.debug(add_cmd.stdout)
+            self.logger.debug("Added node %s to node %s", enode, connection.host)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
