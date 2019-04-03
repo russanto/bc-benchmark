@@ -13,7 +13,7 @@ if logger_host == "":
     print("[WARNING] Logging block propagation won't work because no logging host has been set")
 
 app = Flask("BC-Orch-Controller")
-app.config["UPLOAD_FOLDER"] = "/Users/antonio/Documents/Universita/INSA/bc-benchmark/uploads"
+app.config["UPLOAD_FOLDER"] = "/root/uploads"
 if not os.path.exists(app.config["UPLOAD_FOLDER"]):
     os.makedirs(app.config["UPLOAD_FOLDER"])
 
