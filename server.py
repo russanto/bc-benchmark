@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+import logging
 import os
 import queue
 import sys
@@ -11,6 +12,11 @@ from host_manager import HostManager
 logger_host = os.environ.get("LOGGER_HOST", "")
 if logger_host == "":
     print("[WARNING] Logging block propagation won't work because no logging host has been set")
+
+if os.environ["LOG_LEVEL"] == "DEBUG":
+    logging.basicConfig(level=logging.DEBUG)
+elif os.environ["LOG_LEVEL"] == "INFO":
+    logging.basicConfig(level=logging.INFO)
 
 app = Flask("BC-Orch-Controller")
 app.config["UPLOAD_FOLDER"] = "/root/uploads"
