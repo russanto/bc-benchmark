@@ -35,7 +35,7 @@ def start(nodes_count):
     global bp_manager
     hosts = host_manager.get_hosts()
     if len(hosts) < nodes_count:
-        return jsonify({"message": 'Not enough nodes ready'}), 403
+        return jsonify({"message": 'Not enough nodes ready'}), 412
     elif bp_manager != None:
         return jsonify({"message": 'Benchmark already started'}), 403
     else:
@@ -43,20 +43,20 @@ def start(nodes_count):
         bp_manager.start()
         return jsonify({"message": "started"})
 
-@app.route('/start/ethereum/<int:nodes_count>', methods=['POST'])
+@app.route('/start/geth/<int:nodes_count>', methods=['POST'])
 def upload_file(nodes_count):
     global geth_manager
     hosts = host_manager.get_hosts()
     if len(hosts) < nodes_count:
-        return jsonify('Not enough nodes ready')
+        return jsonify({"message": 'Not enough nodes ready'}), 412
     elif geth_manager != None:
-        return jsonify('Benchmark already started')
+        return jsonify({"message": 'Benchmark already started'}), 403
     else:
         if 'genesis' not in request.files:
-            return jsonify("genesis is required in order to start the network")
+            return jsonify({"message": 'Genesis is required in order to start the blockchain'}), 403
         file = request.files['genesis']
         if file.filename == '':
-            return jsonify("empty genesis found")
+            return jsonify({"message": 'Empty json found'}), 403
         if file:
             genesis_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
             file.save(genesis_file)
