@@ -4,7 +4,7 @@ import ipaddress
 import requests
 import sys, time
 
-class NodeManager:
+class MultichainManager:
 
     nodes_ips = []
     nodes_ssh_connections = []
@@ -24,13 +24,9 @@ class NodeManager:
     log_collector_host = "192.168.20.1"
     log_directory = "./logs/"
 
-    def __init__(self, seed_ip, start_ip, end_ip, conf_file=""):
+    def __init__(self, hosts, conf_file=""):
         self._parse_conf(conf_file)
-        self.nodes_ips.append(ipaddress.IPv4Address(seed_ip))
-        start = ipaddress.IPv4Address(start_ip)
-        end = ipaddress.IPv4Address(end_ip)
-        for ip_int in range(int(start), int(end) + 1):
-            self.nodes_ips.append(ipaddress.IPv4Address(ip_int))
+        self.nodes_ips = hosts
 
     def connect(self):
         for ip in self.nodes_ips:
@@ -39,9 +35,6 @@ class NodeManager:
                     user=self.ssh_username,
                     inline_ssh_env=True
             ))
-    
-    def add_node_ip(self, ip):
-        self.nodes_ips.append(ipaddress.IPv4Address(ip))
 
     def create(self):
         self._log("Creating seed", str(self.nodes_ips[0]))
@@ -215,23 +208,5 @@ class NodeManager:
 
     def _log(self, entry, host):
         print("[MANAGER][%s] %s" % (host, entry))
-
-if __name__ == "__main__":
-    import sys, time
-    seconds = int(sys.argv[1])
-    start_ip = ipaddress.IPv4Address(sys.argv[2])
-    end_ip = ipaddress.IPv4Address(sys.argv[3])
-    print("-----> Performing a clean run for %d seconds" % seconds)
-    
-    start = int(start_ip)
-    seed = start
-    start += 1
-    end = int(end_ip)
-
-    manager = NodeManager(str(ipaddress.IPv4Address(seed)), str(ipaddress.IPv4Address(start)), str(ipaddress.IPv4Address(end)))
-    manager.clean()
-    manager.create()
-    time.sleep(seconds)
-    manager.stop()
     
 

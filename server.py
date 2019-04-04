@@ -1,51 +1,75 @@
-from flask import Flask
+from flask import Flask, jsonify, request
+import logging
 import os
 import queue
 import sys
 from threading import Thread
 
 from block_benchmark_handler import BlockBenchmarkHandler
+from geth_manager import GethManager
+from host_manager import HostManager
 
 logger_host = os.environ.get("LOGGER_HOST", "")
 if logger_host == "":
     print("[WARNING] Logging block propagation won't work because no logging host has been set")
 
-app = Flask("HostWriter")
-starter = None
-writer = None
-ready_queue = queue.Queue()
-host_queue = queue.Queue()
+if os.environ["LOG_LEVEL"] == "DEBUG":
+    logging.basicConfig(level=logging.DEBUG)
+elif os.environ["LOG_LEVEL"] == "INFO":
+    logging.basicConfig(level=logging.INFO)
+
+app = Flask("BC-Orch-Controller")
+app.config["UPLOAD_FOLDER"] = "/root/uploads"
+if not os.path.exists(app.config["UPLOAD_FOLDER"]):
+    os.makedirs(app.config["UPLOAD_FOLDER"])
+
+host_manager = HostManager("hosts")
+bp_manager = None
+geth_manager = None
+
+@app.route('/ready')
+def get_ready_count():
+    return jsonify({"count": len(host_manager.get_hosts())})
 
 @app.route('/ready/<string:ip_ready>')
-def show_post(ip_ready):
-    ready_queue.put(ip_ready)
-    return 'understood'
+def notify_ready(ip_ready):
+    host_manager.add_host(ip_ready)
+    return jsonify('understood')
 
-@app.route('/start/<int:nodes_count>')
+@app.route('/start/multichain/<int:nodes_count>', methods=['GET', 'POST'])
 def start(nodes_count):
-    global writer, starter
-    if starter == None:
-        writer = BlockBenchmarkHandler(host_queue, nodes_count, logger_host)
-        writer.start()
-        starter = Thread(target=start_deploy)
-        starter.start()
-        return logger_host
+    global bp_manager
+    hosts = host_manager.get_hosts()
+    if len(hosts) < nodes_count:
+        return jsonify({"message": 'Not enough nodes ready'}), 412
+    elif bp_manager != None:
+        return jsonify({"message": 'Benchmark already started'}), 403
     else:
-        return 'no'
+        bp_manager = BlockBenchmarkHandler(hosts[0:nodes_count], logger_host)
+        bp_manager.start()
+        return jsonify({"message": "started"})
 
-def start_deploy():
-    ip = ready_queue.get()
-    while True:
-        host_queue.put(ip)
-        if ip == "":
-            return
-        else:
-            ip = ready_queue.get()
-    
+@app.route('/start/geth/<int:nodes_count>', methods=['POST'])
+def upload_file(nodes_count):
+    global geth_manager
+    hosts = host_manager.get_hosts()
+    if len(hosts) < nodes_count:
+        return jsonify({"message": 'Not enough nodes ready'}), 412
+    elif geth_manager != None:
+        return jsonify({"message": 'Benchmark already started'}), 403
+    else:
+        if 'genesis' not in request.files:
+            return jsonify({"message": 'Genesis is required in order to start the blockchain'}), 403
+        file = request.files['genesis']
+        if file.filename == '':
+            return jsonify({"message": 'Empty json found'}), 403
+        if file:
+            genesis_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            file.save(genesis_file)
+            geth_manager = GethManager(hosts[0:nodes_count])
+            geth_manager.start(genesis_file, wait=False)
+            return jsonify("Starting network")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
-    ready_queue.put("")
-    if starter != None:
-        writer.join()
-        starter.join()
+    host_manager.close()

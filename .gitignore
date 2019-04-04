@@ -14,3 +14,5 @@ orchestration/ssh-keys/*
 orchestration/clouds.yaml
 
 \.vscode/
+
+logs/
