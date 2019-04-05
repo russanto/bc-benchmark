@@ -12,6 +12,7 @@ class HostManager:
                 self._hosts = []
                 self.write_queue = queue.Queue()
                 self.logger = logging.getLogger("HostManager")
+                self._read_host_file()
                 self.write_thread = threading.Thread(target=self._writer)
                 self.write_thread.start()
 
@@ -34,6 +35,12 @@ class HostManager:
 
         def get_hosts(self):
                 return self._hosts[0:len(self._hosts)]
+        
+        def _read_host_file(self):
+            with open(self.host_file) as host_file:
+                for line in host_file:
+                    stripped = line.strip()
+                    self._hosts.append(stripped)
 
         def close(self):
                 self.write_queue.put("")
