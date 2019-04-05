@@ -2,6 +2,8 @@ from fabric import Connection
 import logging
 from threading import Thread
 import time
+from web3 import Web3, HTTPProvider, WebsocketProvider
+import web3.admin
 
 class GethManager:
 
@@ -21,7 +23,7 @@ class GethManager:
             start_th = Thread(target=self._start, args=(genesis_file,))
             start_th.start()
 
-    def _start(self, genesis_file):
+    def _start(self, genesis_file): #TODO launch multiple parallel threads
         for host in self.hosts:
             self.logger.info("Deploying on %s" % host)
             cnx = Connection(host=host, user=self.ssh_username)
@@ -29,8 +31,7 @@ class GethManager:
             self.start_node(cnx)
             self.ssh_connections.append(cnx)
             self.logger.info("Deployed %s" % host)
-        for cnx in self.ssh_connections: #TODO launch multiple parallel threads
-            self.connect_node(cnx, self.enodes)
+        self.full_mesh()
         
 
     def copy_genesis(self, connection, file):
@@ -42,20 +43,31 @@ class GethManager:
     
     def start_node(self, connection):
         connection.run("docker run -v %s:/root ethereum/client-go init /root/genesis.json" % (self.data_dir), hide=True)
-        connection.run("docker run -d -v %s:/root --name ethereum-node -P ethereum/client-go --rpc --rpcaddr 0.0.0.0 --ws --wsaddr 0.0.0.0" % (self.data_dir), hide=True)
-        enode_cmd = connection.run("docker run -v %s:/root -t ethereum/client-go attach --exec \"console.log(admin.nodeInfo.enode)\"" % (self.data_dir), hide=True)
-        enode = enode_cmd.stdout.split("\n")[1].replace("127.0.0.1", connection.host)
-        self.enodes.append(enode)
+        connection.run("docker run -d -v %s:/root --name ethereum-node -p 8545:8545 -p 8546:8546 -p 30303:30303 -p 30303:30303/udp ethereum/client-go:stable --rpc --rpcaddr 0.0.0.0 --rpcapi admin,eth,miner,web3 --mine --minerthreads=1 --etherbase=0x0000000000000000000000000000000000000001" % (self.data_dir), hide=True)
 
-    def connect_node(self, connection, enodes):
-        for enode in enodes:
-            add_cmd = connection.run("docker run -v %s:/root -t ethereum/client-go attach --exec \"admin.addPeer(%s)\"" % (self.data_dir, enode), hide=True)
-            self.logger.debug(add_cmd.stdout)
-            self.logger.debug("Added node %s to node %s", enode, connection.host)
+    def full_mesh(self):
+        self.web3_connections = {}
+        for cnx in self.ssh_connections:
+            web3 = Web3(HTTPProvider("http://%s:8545" % cnx.host))
+            self.web3_connections[cnx.host] = web3
+            enode = self.substitute_enode_ip(web3.admin.nodeInfo["enode"], cnx.host)
+            self.logger.debug("Added enode: %s" % enode)
+            self.enodes.append(enode)
+            for host, web3_cnx in self.web3_connections.items():
+                for enode in self.enodes:
+                    web3_cnx.admin.addPeer(enode)
+                    self.logger.debug("Added node %s to node %s", enode, host)
+    
+    def substitute_enode_ip(self, enode, new_ip):
+        at_index = enode.find("@")
+        port_index = enode.find(":30303")
+        return enode[0:at_index+1] + new_ip + enode[port_index:]
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     from host_manager import HostManager
     host_manager = HostManager("hosts", False)
-    manager = GethManager(host_manager.get_hosts())
+    hosts = host_manager.get_hosts()
+    manager = GethManager(hosts)
     manager.start("genesis.json")
+    host_manager.close()
