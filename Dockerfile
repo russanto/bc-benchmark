@@ -5,5 +5,5 @@ RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debia
 RUN apt-get update && apt-get install -y docker-ce-cli
 WORKDIR /root
 COPY . /root/
-RUN pip install fabric && pip install requests && pip install flask
+RUN pip install -r requirements.txt
 CMD [ "python", "server.py" ]
