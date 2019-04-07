@@ -36,17 +36,23 @@ class GethManager:
         self.local_connections = {"docker": {"client": local_docker, "containers": {}}}
         try:
             local_geth_node = local_docker.containers.get("geth-node")
+            local_geth_node.stop()
+            local_geth_node.remove()
+            self.logger.debug("Geth local node found, stopped and removed")
         except docker.errors.NotFound:
-            local_geth_node = local_docker.containers.run(
-                "ethereum/client-go:stable",
-                "--rpc --rpcapi personal,web3 --rpcaddr 0.0.0.0 --nodiscover", detach=True, volumes={
-                    self.local_conf["datadir"]: {
-                        'bind': '/root',
-                        'mode': 'rw'
-                    }
-                }, ports={
-                    '8545/tcp': '8545'
-                }, name="geth-node")
+            self.logger.debug("Geth local node not found, a new one will be created")
+        except:
+            raise
+        local_geth_node = local_docker.containers.run(
+            "ethereum/client-go:stable",
+            "--rpc --rpcapi personal,web3 --rpcaddr 0.0.0.0 --nodiscover", detach=True, volumes={
+                self.local_conf["datadir"]: {
+                    'bind': '/root',
+                    'mode': 'rw'
+                }
+            }, ports={
+                '8545/tcp': '8545'
+            }, name="geth-node")
         self.local_connections["docker"]["containers"]["geth-node"] = local_geth_node
         if running_in_container:
             self.local_connections["web3"] = Web3(HTTPProvider("http://%s:8545" % local_geth_node.attrs['NetworkSettings']['IPAddress']))
@@ -63,21 +69,19 @@ class GethManager:
             start_th = Thread(target=self._start, args=(genesis_file,))
             start_th.start()
 
-    def stop(self):
-        for _, container in self.local_connections["docker"]["containers"].items():
-                container.stop()
-                container.remove()
+    def stop(self, cleanup=True):
         for host in self.hosts:
             for _, container in self.host_connections[host]["docker"]["containers"].items():
                 container.stop()
                 container.remove()
-
-    def cleanup(self):
-        for host in self.hosts:
-            ssh = self.host_connections[host]["ssh"]
-            ssh.sudo("rm -rf %s" % self.host_conf["datadir"])
+            if cleanup:
+                ssh = self.host_connections[host]["ssh"]
+                ssh.sudo("rm -rf %s" % self.host_conf["datadir"])
     
     def deinit(self):
+        for _, container in self.local_connections["docker"]["containers"].items():
+            container.stop()
+            container.remove()
         self.local_connections["docker"]["client"].close()
         for host in self.hosts:
             self.host_connections[host]["docker"]["client"].close()
@@ -151,13 +155,20 @@ class GethManager:
     def _start_node(self, host, etherbase):
         self.logger.debug("Deploying node at %s" % host)
         docker_client = self.host_connections[host]["docker"]["client"]
+        try:
+            geth_node = docker_client.containers.get("geth-node")
+            geth_node.stop()
+            geth_node.remove()
+            self.logger.debug("[{0}]Geth node found, stopped and removed".format(host))
+        except docker.errors.NotFound:
+            pass
         docker_client.containers.run("ethereum/client-go:stable", "init /root/genesis.json", volumes={
             self.host_conf["datadir"]: {
                 "bind": "/root",
                 "mode": "rw"
             }
         })
-        self.logger.debug("DB initiated at %s" % host)
+        self.logger.debug("[{0}]DB initiated".format(host))
         self.host_connections[host]["docker"]["containers"]["geth-node"] = docker_client.containers.run(
             "ethereum/client-go:stable",
             "--rpc --rpcaddr 0.0.0.0 --rpcapi admin,eth,miner,personal,web3 --nodiscover --etherbase {0}".format(etherbase),
@@ -179,7 +190,7 @@ class GethManager:
         if version:
             self.logger.info("[{0}]Deployed Geth node with etherbase {1}".format(host, etherbase))
         else:
-            self.logger.error("[{0}]Error deploying node".format(host))        
+            self.logger.error("[{0}]Error deploying node".format(host))
 
     @staticmethod
     def substitute_enode_ip(enode, new_ip):
@@ -207,7 +218,6 @@ if __name__ == "__main__":
     hosts = host_manager.get_hosts()
     manager = GethManager(hosts)
     manager.init(False)
-    manager.cleanup()
     manager.start("genesis.json")
     time.sleep(180)
     manager.stop()
