@@ -20,10 +20,19 @@ if "LOG_LEVEL" in os.environ:
     elif os.environ["LOG_LEVEL"] == "INFO":
         logging.basicConfig(level=logging.INFO)
 
+RUNNING_IN_CONTAINER = True
+if "RUNNING_IN_CONTAINER" in os.environ:
+    if os.environ["RUNNING_IN_CONTAINER"] == 0:
+        RUNNING_IN_CONTAINER = False
+
+UPLOAD_FOLDER = "/root/uploads"
+if "UPLOAD_FOLDER" in os.environ:
+    UPLOAD_FOLDER = os.environ["UPLOAD_FOLDER"]
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
 app = Flask("BC-Orch-Controller")
-app.config["UPLOAD_FOLDER"] = "/root/uploads"
-if not os.path.exists(app.config["UPLOAD_FOLDER"]):
-    os.makedirs(app.config["UPLOAD_FOLDER"])
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 #TODO Implementare prenotazione host
 host_manager = HostManager("hosts", overwrite=False)
@@ -65,7 +74,7 @@ def start_geth(nodes_count):
         file.save(genesis_file)
         deploy_id = uuid.uuid4()
         geth_manager = GethManager(hosts)
-        geth_manager.init(running_in_container=False)
+        geth_manager.init(running_in_container=RUNNING_IN_CONTAINER)
         geth_manager.cleanup()
         geth_manager.start(genesis_file, wait=False)
         bc_manager[deploy_id] = geth_manager
