@@ -20,7 +20,7 @@ class GethManager:
     }
 
     local_conf = {
-        "datadir": '/home/ubuntu/ethereum'
+        "datadir": "/home/ubuntu/ethereum",
         "network_name": "benchmark",
         "node_name": "geth-node"
     }
