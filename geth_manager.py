@@ -69,14 +69,20 @@ class GethManager:
             start_th = Thread(target=self._start, args=(genesis_file,))
             start_th.start()
 
-    def stop(self, cleanup=True):
+    def stop(self, cleanup=False):
         for host in self.hosts:
             for _, container in self.host_connections[host]["docker"]["containers"].items():
                 container.stop()
                 container.remove()
             if cleanup:
-                ssh = self.host_connections[host]["ssh"]
-                ssh.sudo("rm -rf %s" % self.host_conf["datadir"])
+                self.cleanup(host=host)
+
+    def cleanup(self, host=None):
+        if host == None:
+            for host in self.hosts:
+                self._cleanup(host)
+        else:
+            self._cleanup(host)
     
     def deinit(self):
         for _, container in self.local_connections["docker"]["containers"].items():
@@ -191,6 +197,11 @@ class GethManager:
             self.logger.info("[{0}]Deployed Geth node with etherbase {1}".format(host, etherbase))
         else:
             self.logger.error("[{0}]Error deploying node".format(host))
+    
+    def _cleanup(self, host):
+        self.logger.info("[{0}]Data cleaned".format(host))
+        ssh = self.host_connections[host]["ssh"]
+        ssh.sudo("rm -rf %s" % self.host_conf["datadir"])
 
     @staticmethod
     def substitute_enode_ip(enode, new_ip):

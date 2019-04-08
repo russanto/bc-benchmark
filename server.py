@@ -53,6 +53,7 @@ def start(nodes_count):
 
 @app.route('/start/geth/<int:nodes_count>', methods=['POST'])
 def start_geth(nodes_count):
+    global bc_manager
     if 'genesis' not in request.files:
         return jsonify({"message": 'Genesis is required in order to start the blockchain'}), 403
     file = request.files['genesis']
@@ -65,6 +66,7 @@ def start_geth(nodes_count):
         deploy_id = uuid.uuid4()
         geth_manager = GethManager(hosts[0:nodes_count])
         geth_manager.init(running_in_container=False)
+        geth_manager.cleanup()
         geth_manager.start(genesis_file, wait=False)
         bc_manager[deploy_id] = geth_manager
         return jsonify({"message": "Starting network", "deploy_id": deploy_id})
@@ -73,9 +75,11 @@ def start_geth(nodes_count):
 
 @app.route('/stop/geth/<string:deploy_id>', methods=['GET', 'POST'])
 def stop_geth(deploy_id):
-    if deploy_id in bc_manager:
-        geth_manager = bc_manager[deploy_id]
-        geth_manager.stop()
+    global bc_manager
+    uuidObj = uuid.UUID('urn:uuid:{0}'.format(deploy_id))
+    if uuidObj in bc_manager:
+        geth_manager = bc_manager[uuidObj]
+        geth_manager.stop(cleanup=True)
         geth_manager.deinit()
         return jsonify({"message": 'Nodes stopped and session closed'})
     return jsonify({"message": 'Deploy session not found'}), 404
