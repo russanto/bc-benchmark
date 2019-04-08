@@ -52,6 +52,7 @@ class GethManager:
                 self.local_conf["network_name"],
                 driver="bridge",
                 check_duplicate=True)
+            local_network.connect("orch-controller") #TODO Avoid embedding this string inside the code
             self.local_connections["docker"]["networks"][self.local_conf["network_name"]] = local_network
         except:
             self.logger.info("[LOCAL]Network already deployed")
@@ -67,11 +68,13 @@ class GethManager:
             }, name=self.local_conf["node_name"], network=self.local_conf["network_name"])
         self.local_connections["docker"]["containers"][self.local_conf["node_name"]] = local_geth_node
         if running_in_container:
-            self.local_connections["web3"] = Web3(HTTPProvider("http://%s:8545" % local_geth_node.attrs['NetworkSettings']['IPAddress']))
+            self.local_connections["web3"] = Web3(HTTPProvider("http://%s:8545" % self.local_conf["node_name"]))
         else:
             self.local_connections["web3"] = Web3(HTTPProvider("http://localhost:8545"))
-        self.check_web3_cnx(self.local_connections["web3"], 3, 2)
-        self.logger.info("Initialized local eth node")
+        if self.check_web3_cnx(self.local_connections["web3"], 4, 2):
+            self.logger.info("Initialized local eth node")
+        else:
+            raise Exception("Can't contact local Geth node. Please abort the deploy.")
         
 
     def start(self, genesis_file, wait=True):
