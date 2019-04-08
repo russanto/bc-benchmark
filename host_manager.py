@@ -14,7 +14,8 @@ class HostManager:
                 self.write_queue = queue.Queue()
                 self.logger = logging.getLogger("HostManager")
                 self._reserving_lock = threading.Lock()
-                self._read_host_file()
+                if not overwrite:
+                        self._read_host_file()
                 self.write_thread = threading.Thread(target=self._writer)
                 self.write_thread.start()
         

@@ -35,7 +35,7 @@ app = Flask("BC-Orch-Controller")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 #TODO Implementare prenotazione host
-host_manager = HostManager("hosts", overwrite=False)
+host_manager = HostManager("hosts")
 bc_manager = {}
 
 @app.route('/ready')
