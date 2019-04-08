@@ -64,7 +64,7 @@ def start_geth(nodes_count):
         genesis_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(genesis_file)
         deploy_id = uuid.uuid4()
-        geth_manager = GethManager(hosts[0:nodes_count])
+        geth_manager = GethManager(hosts)
         geth_manager.init(running_in_container=False)
         geth_manager.cleanup()
         geth_manager.start(genesis_file, wait=False)

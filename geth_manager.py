@@ -14,11 +14,15 @@ class GethManager:
 
     host_conf = {
         "datadir": "/home/ubuntu/ethereum",
+        "network_name": "benchmark",
+        "node_name": "geth-node",
         "ssh_username": "ubuntu"
     }
 
     local_conf = {
         "datadir": '/home/ubuntu/ethereum'
+        "network_name": "benchmark",
+        "node_name": "geth-node"
     }
 
     host_pvt_key_pw = ""
@@ -33,9 +37,9 @@ class GethManager:
     def init(self, running_in_container=True):
         self._init_host_connections()
         local_docker = docker.from_env()
-        self.local_connections = {"docker": {"client": local_docker, "containers": {}}}
+        self.local_connections = {"docker": {"client": local_docker, "containers": {}, "networks": {}}}
         try:
-            local_geth_node = local_docker.containers.get("geth-node")
+            local_geth_node = local_docker.containers.get(self.local_conf["node_name"])
             local_geth_node.stop()
             local_geth_node.remove()
             self.logger.debug("Geth local node found, stopped and removed")
@@ -43,6 +47,14 @@ class GethManager:
             self.logger.debug("Geth local node not found, a new one will be created")
         except:
             raise
+        try:
+            local_network = local_docker.networks.create(
+                self.local_conf["network_name"],
+                driver="bridge",
+                check_duplicate=True)
+            self.local_connections["docker"]["networks"][self.local_conf["network_name"]] = local_network
+        except:
+            self.logger.info("[LOCAL]Network already deployed")
         local_geth_node = local_docker.containers.run(
             "ethereum/client-go:stable",
             "--rpc --rpcapi personal,web3 --rpcaddr 0.0.0.0 --nodiscover", detach=True, volumes={
@@ -52,8 +64,8 @@ class GethManager:
                 }
             }, ports={
                 '8545/tcp': '8545'
-            }, name="geth-node")
-        self.local_connections["docker"]["containers"]["geth-node"] = local_geth_node
+            }, name=self.local_conf["node_name"], network=self.local_conf["network_name"])
+        self.local_connections["docker"]["containers"][self.local_conf["node_name"]] = local_geth_node
         if running_in_container:
             self.local_connections["web3"] = Web3(HTTPProvider("http://%s:8545" % local_geth_node.attrs['NetworkSettings']['IPAddress']))
         else:
@@ -90,6 +102,9 @@ class GethManager:
             container.remove()
         self.local_connections["docker"]["client"].close()
         for host in self.hosts:
+            for _, network in self.host_connections[host]["docker"]["networks"].items():
+                network.remove()
+                self.logger.info("[{0}]Network removed".format(host))
             self.host_connections[host]["docker"]["client"].close()
             self.host_connections[host]["ssh"].close()
 
@@ -114,7 +129,8 @@ class GethManager:
             self.host_connections[host] = {
                 "docker": {
                     "client": docker.DockerClient(base_url='tcp://%s:%d' % (host, self.docker_remote_api_port)),
-                    "containers": {}
+                    "containers": {},
+                    "networks": {}
                 },
                 "ssh": Connection(host=host, user=self.host_conf["ssh_username"])
             }
@@ -157,17 +173,33 @@ class GethManager:
                 web3.personal.importRawKey(pvt_key, self.host_pvt_key_pw)
                 self.logger.info("[{0}]Imported {1} private key".format(host, key_file_address))
         self.full_mesh()
+
+    def _init_node_network(self, host):
+        network_name = self.host_conf["network_name"]
+        docker_client = self.host_connections[host]["docker"]["client"]
+        networks = docker_client.networks.list(names=[network_name])
+        if len(networks) == 1:
+            self.host_connections[host]["docker"]["networks"][network_name] = networks[0]
+            self.logger.info("[{0}]Network already deployed".format(host))
+        else:
+            for network in networks:
+                network.remove()
+            self.host_connections[host]["docker"]["networks"][self.host_conf["network_name"]] = docker_client.networks.create(
+                self.host_conf["network_name"],
+                driver="bridge")
+            self.logger.info("[{0}]Network deployed".format(host))
         
-    def _start_node(self, host, etherbase):
+    def _start_node(self, host, etherbase): #TODO set mining threads
         self.logger.debug("Deploying node at %s" % host)
         docker_client = self.host_connections[host]["docker"]["client"]
         try:
-            geth_node = docker_client.containers.get("geth-node")
+            geth_node = docker_client.containers.get(self.host_conf["node_name"])
             geth_node.stop()
             geth_node.remove()
             self.logger.debug("[{0}]Geth node found, stopped and removed".format(host))
         except docker.errors.NotFound:
             pass
+        self._init_node_network(host)
         docker_client.containers.run("ethereum/client-go:stable", "init /root/genesis.json", volumes={
             self.host_conf["datadir"]: {
                 "bind": "/root",
@@ -175,10 +207,10 @@ class GethManager:
             }
         })
         self.logger.debug("[{0}]DB initiated".format(host))
-        self.host_connections[host]["docker"]["containers"]["geth-node"] = docker_client.containers.run(
+        self.host_connections[host]["docker"]["containers"][self.host_conf["node_name"]] = docker_client.containers.run(
             "ethereum/client-go:stable",
-            "--rpc --rpcaddr 0.0.0.0 --rpcapi admin,eth,miner,personal,web3 --nodiscover --etherbase {0}".format(etherbase),
-            name="geth-node",
+            "--rpc --rpcaddr 0.0.0.0 --rpcapi admin,eth,miner,personal,web3 --nodiscover --etherbase {0} --mine --minerthreads 2".format(etherbase),
+            name=self.host_conf["node_name"],
             volumes={
                 self.host_conf["datadir"]: {
                     "bind": "/root",
@@ -189,8 +221,7 @@ class GethManager:
                 '8546/tcp': '8546',
                 '30303/tcp': '30303',
                 '30303/udp': '30303',
-            },
-            detach=True)
+            }, detach=True, network=self.host_conf["network_name"])
         self.host_connections[host]["web3"] = Web3(HTTPProvider("http://%s:8545" % host))
         version = self.check_web3_cnx(self.host_connections[host]["web3"], 4, 1)
         if version:
@@ -231,6 +262,6 @@ if __name__ == "__main__":
     manager.init(False)
     manager.start("genesis.json")
     time.sleep(180)
-    manager.stop()
+    manager.stop(cleanup=True)
     manager.deinit()
     host_manager.close()
