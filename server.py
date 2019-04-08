@@ -90,6 +90,7 @@ def stop_geth(deploy_id):
         geth_manager = bc_manager[uuidObj]
         geth_manager.stop(cleanup=True)
         geth_manager.deinit()
+        host_manager.free_hosts(geth_manager.hosts)
         return jsonify({"message": 'Nodes stopped and session closed'})
     return jsonify({"message": 'Deploy session not found'}), 404
 

@@ -58,7 +58,7 @@ class GethManager:
             self.logger.info("[LOCAL]Network already deployed")
         local_geth_node = local_docker.containers.run(
             "ethereum/client-go:stable",
-            "--rpc --rpcapi personal,web3 --rpcaddr 0.0.0.0 --nodiscover", detach=True, volumes={
+            "--rpc --rpcapi personal,web3 --rpcaddr 0.0.0.0 --rpcvhosts=* --nodiscover", detach=True, volumes={
                 self.local_conf["datadir"]: {
                     'bind': '/root',
                     'mode': 'rw'
@@ -162,7 +162,7 @@ class GethManager:
 
     def _start(self, genesis_file): #TODO launch multiple parallel threads
         self._init_genesis(len(self.hosts), genesis_file)
-        keystore_dir = os.path.join(self.local_conf["datadir"], ".ethereum/keystore")
+        keystore_dir = "/root/ethereum/.ethereum/keystore"
         pvt_key_file_list = os.listdir(keystore_dir)
         for host in self.hosts:
             self._copy_genesis(host, genesis_file)
@@ -212,7 +212,7 @@ class GethManager:
         self.logger.debug("[{0}]DB initiated".format(host))
         self.host_connections[host]["docker"]["containers"][self.host_conf["node_name"]] = docker_client.containers.run(
             "ethereum/client-go:stable",
-            "--rpc --rpcaddr 0.0.0.0 --rpcapi admin,eth,miner,personal,web3 --nodiscover --etherbase {0} --mine --minerthreads 2".format(etherbase),
+            "--rpc --rpcaddr 0.0.0.0 --rpcvhosts=* --rpcapi admin,eth,miner,personal,web3 --nodiscover --etherbase {0} --mine --minerthreads 2".format(etherbase),
             name=self.host_conf["node_name"],
             volumes={
                 self.host_conf["datadir"]: {
