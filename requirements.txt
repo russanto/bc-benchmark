@@ -2,3 +2,4 @@ docker
 fabric
 flask
 requests
+web3
