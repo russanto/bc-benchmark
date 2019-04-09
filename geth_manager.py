@@ -11,6 +11,8 @@ import web3.admin
 
 class GethManager:
 
+    N_DEPLOYER_THREADS = 4
+
     CMD_INIT = "init"
     CMD_CLEANUP = "cleanup"
     CMD_START = "start"
@@ -42,6 +44,12 @@ class GethManager:
         self.logger = logging.getLogger("GethManager")
         if "LOCAL_NODE_DIR" in os.environ:
             self.local_conf["datadir"] = os.environ["LOCAL_NODE_DIR"]
+        if "N_DEPLOYER_THREADS" in os.environ:
+            self.N_DEPLOYER_THREADS = int(os.environ["N_DEPLOYER_THREADS"])
+        if running_in_container:
+            self.keystore_dir = "/root/ethereum/.ethereum/keystore"
+        else:
+            self.keystore_dir = os.path.join(self.local_conf["datadir"], ".ethereum/keystore")
         self.cmd_queue = queue.Queue()
         cmd_th = Thread(target=self._main_cmd_thread)
         cmd_th.start()
@@ -185,25 +193,78 @@ class GethManager:
         connection.put(file_path, remote=datadir + "/genesis.json")
 
     def _start(self, genesis_file): #TODO launch multiple parallel threads
+        deployers = []
+        host_queue = queue.Queue()
         self._init_genesis(len(self.hosts), genesis_file)
-        if self.running_in_container:
-            keystore_dir = "/root/ethereum/.ethereum/keystore"
-        else:
-            keystore_dir = os.path.join(self.local_conf["datadir"], ".ethereum/keystore")
-        pvt_key_file_list = os.listdir(keystore_dir)
+        pvt_key_file_list = os.listdir(self.keystore_dir)
         for host in self.hosts:
-            self._copy_genesis(host, genesis_file)
             key_file = pvt_key_file_list.pop()
-            key_file_address = key_file.split("--")[2]
-            self._start_node(host, key_file_address)
+            host_queue.put({"host": host, "etherbase_key_file": key_file})
+        for _ in range(min(self.N_DEPLOYER_THREADS, len(self.hosts))):
+            deployer = Thread(target=self._start_node, args=(genesis_file, host_queue,))
+            deployer.start()
+            deployers.append(deployer)
+            host_queue.put("") # The empty string is the stop signal for the _start_node thread
+        for deployer in deployers:
+            deployer.join()
+        self.full_mesh()
+        
+    def _start_node(self, genesis_file, host_queue): #TODO set mining threads
+        host_data = host_queue.get()
+        while host_data != "":
+            host = host_data["host"]
+            etherbase_key_file = host_data["etherbase_key_file"]
+            self.logger.debug("Deploying node at %s" % host)
+            self._copy_genesis(host, genesis_file)
+            etherbase = etherbase_key_file.split("--")[2]
+            docker_client = self.host_connections[host]["docker"]["client"]
+            try:
+                geth_node = docker_client.containers.get(self.host_conf["node_name"])
+                geth_node.stop()
+                geth_node.remove()
+                self.logger.debug("[{0}]Geth node found, stopped and removed".format(host))
+            except docker.errors.NotFound:
+                pass
+            self._init_node_network(host)
+            docker_client.containers.run("ethereum/client-go:stable", "init /root/genesis.json", volumes={
+                self.host_conf["datadir"]: {
+                    "bind": "/root",
+                    "mode": "rw"
+                }
+            })
+            self.logger.debug("[{0}]DB initiated".format(host))
+            self.host_connections[host]["docker"]["containers"][self.host_conf["node_name"]] = docker_client.containers.run(
+                "ethereum/client-go:stable",
+                "--rpc --rpcaddr 0.0.0.0 --rpcvhosts=* --rpcapi admin,eth,miner,personal,web3 --nodiscover --etherbase {0} --mine --minerthreads 2".format(etherbase),
+                name=self.host_conf["node_name"],
+                volumes={
+                    self.host_conf["datadir"]: {
+                        "bind": "/root",
+                        "mode": "rw"
+                    }
+                }, ports={
+                    '8545/tcp': '8545',
+                    '8546/tcp': '8546',
+                    '30303/tcp': '30303',
+                    '30303/udp': '30303',
+                }, detach=True, network=self.host_conf["network_name"])
+            self.host_connections[host]["web3"] = Web3(HTTPProvider("http://%s:8545" % host))
+            version = self.check_web3_cnx(self.host_connections[host]["web3"], 4, 1)
+            if version:
+                self.logger.debug("[{0}]Geth node up".format(host))
+            else:
+                self.logger.error("[{0}]Error deploying node".format(host))
+            
+            # Imports the etherbase private key in the node
             web3 = self.host_connections[host]["web3"]
-            with open(os.path.join(keystore_dir, key_file)) as pvt_key_file:
+            with open(os.path.join(self.keystore_dir, etherbase_key_file)) as pvt_key_file:
                 pvt_key_enc = pvt_key_file.read()
                 pvt_key = web3.eth.account.decrypt(pvt_key_enc, self.host_pvt_key_pw)
                 web3.personal.importRawKey(pvt_key, self.host_pvt_key_pw)
-                self.logger.info("[{0}]Imported {1} private key".format(host, key_file_address))
-        self.full_mesh()
-
+                self.logger.info("[{0}]Imported {1} private key".format(host, etherbase))
+            self.logger.info("[{0}]Deployed Geth node with etherbase {1}".format(host, etherbase))
+            host_data = host_queue.get()
+    
     def _init_node_network(self, host):
         network_name = self.host_conf["network_name"]
         docker_client = self.host_connections[host]["docker"]["client"]
@@ -218,46 +279,6 @@ class GethManager:
                 self.host_conf["network_name"],
                 driver="bridge")
             self.logger.info("[{0}]Network deployed".format(host))
-        
-    def _start_node(self, host, etherbase): #TODO set mining threads
-        self.logger.debug("Deploying node at %s" % host)
-        docker_client = self.host_connections[host]["docker"]["client"]
-        try:
-            geth_node = docker_client.containers.get(self.host_conf["node_name"])
-            geth_node.stop()
-            geth_node.remove()
-            self.logger.debug("[{0}]Geth node found, stopped and removed".format(host))
-        except docker.errors.NotFound:
-            pass
-        self._init_node_network(host)
-        docker_client.containers.run("ethereum/client-go:stable", "init /root/genesis.json", volumes={
-            self.host_conf["datadir"]: {
-                "bind": "/root",
-                "mode": "rw"
-            }
-        })
-        self.logger.debug("[{0}]DB initiated".format(host))
-        self.host_connections[host]["docker"]["containers"][self.host_conf["node_name"]] = docker_client.containers.run(
-            "ethereum/client-go:stable",
-            "--rpc --rpcaddr 0.0.0.0 --rpcvhosts=* --rpcapi admin,eth,miner,personal,web3 --nodiscover --etherbase {0} --mine --minerthreads 2".format(etherbase),
-            name=self.host_conf["node_name"],
-            volumes={
-                self.host_conf["datadir"]: {
-                    "bind": "/root",
-                    "mode": "rw"
-                }
-            }, ports={
-                '8545/tcp': '8545',
-                '8546/tcp': '8546',
-                '30303/tcp': '30303',
-                '30303/udp': '30303',
-            }, detach=True, network=self.host_conf["network_name"])
-        self.host_connections[host]["web3"] = Web3(HTTPProvider("http://%s:8545" % host))
-        version = self.check_web3_cnx(self.host_connections[host]["web3"], 4, 1)
-        if version:
-            self.logger.info("[{0}]Deployed Geth node with etherbase {1}".format(host, etherbase))
-        else:
-            self.logger.error("[{0}]Error deploying node".format(host))
     
     def _cleanup(self):
         for host in self.hosts:
