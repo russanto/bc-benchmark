@@ -73,10 +73,10 @@ def start_geth(nodes_count):
         genesis_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(genesis_file)
         deploy_id = uuid.uuid4()
-        geth_manager = GethManager(hosts)
-        geth_manager.init(running_in_container=RUNNING_IN_CONTAINER)
+        geth_manager = GethManager(hosts, running_in_container=RUNNING_IN_CONTAINER)
+        geth_manager.init()
         geth_manager.cleanup()
-        geth_manager.start(genesis_file, wait=False)
+        geth_manager.start(genesis_file)
         bc_manager[deploy_id] = geth_manager
         return jsonify({"message": "Starting network", "deploy_id": deploy_id})
     else:

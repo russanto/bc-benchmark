@@ -3,12 +3,20 @@ from fabric import Connection
 import json
 import logging
 import os
+import queue
 from threading import Thread
 import time
 from web3 import Web3, HTTPProvider, WebsocketProvider
 import web3.admin
 
 class GethManager:
+
+    CMD_INIT = "init"
+    CMD_CLEANUP = "cleanup"
+    CMD_START = "start"
+    CMD_STOP = "stop"
+    CMD_CLOSE = "close"
+    CMD_DEINIT = "deinit"
 
     docker_remote_api_port = 2375
 
@@ -27,17 +35,79 @@ class GethManager:
 
     host_pvt_key_pw = ""
 
-    def __init__(self, hosts): #TODO Use symbolic names for dns resolution in custom docker network
+    def __init__(self, hosts, running_in_container=True): #TODO Use symbolic names for dns resolution in custom docker network
         self.hosts = hosts
+        self.running_in_container = running_in_container
         self.is_initialized = False
         self.logger = logging.getLogger("GethManager")
         if "LOCAL_NODE_DIR" in os.environ:
             self.local_conf["datadir"] = os.environ["LOCAL_NODE_DIR"]
+        self.cmd_queue = queue.Queue()
+        cmd_th = Thread(target=self._main_cmd_thread)
+        cmd_th.start()
 
     # Lifecycle methods
 
-    def init(self, running_in_container=True):
-        self.running_in_container = running_in_container
+    def init(self):
+        self.cmd_queue.put({
+            "type": self.CMD_INIT
+        })
+        
+
+    def start(self, genesis_file):
+        self.cmd_queue.put({
+            "type": self.CMD_START,
+            "args": {"genesis_file": genesis_file}
+        })
+
+    def stop(self, cleanup=False):
+        self.cmd_queue.put({
+            "type": self.CMD_STOP,
+            "args": {"cleanup": cleanup}
+        })
+
+    def cleanup(self):
+        self.cmd_queue.put({
+            "type": self.CMD_CLEANUP
+        })
+    
+    def deinit(self):
+        self.cmd_queue.put({
+            "type": self.CMD_DEINIT
+        })
+        self.cmd_queue.put({"type": self.CMD_CLOSE})
+
+    # Topology definition methods
+
+    def full_mesh(self): #TODO _start_node function should populate enodes array
+        enodes = []
+        for host in self.hosts:
+            web3 = self.host_connections[host]["web3"]
+            enode = self.substitute_enode_ip(web3.admin.nodeInfo["enode"], host)
+            enodes.append(enode)
+            self.logger.debug("Added enode: %s" % enode)
+            for i in range(len(enodes)-1):
+                web3.admin.addPeer(enodes[i])
+                self.logger.debug("Added node %s to node %s", enodes[i], host)
+
+    # Utility methods. These should not be called from externally.
+
+    def _main_cmd_thread(self):
+        cmd = self.cmd_queue.get()
+        while cmd["type"] != self.CMD_CLOSE:
+            if cmd["type"] == self.CMD_INIT:
+                self._init()
+            elif cmd["type"] == self.CMD_START:
+                self._start(cmd["args"]["genesis_file"])
+            elif cmd["type"] == self.CMD_CLEANUP:
+                self._cleanup()
+            elif cmd["type"] == self.CMD_STOP:
+                self._stop(cmd["args"]["cleanup"])
+            elif cmd["type"] == self.CMD_DEINIT:
+                self._deinit()
+            cmd = self.cmd_queue.get()
+
+    def _init(self):
         self._init_host_connections()
         local_docker = docker.from_env()
         self.local_connections = {"docker": {"client": local_docker, "containers": {}, "networks": {}}}
@@ -55,7 +125,7 @@ class GethManager:
                 self.local_conf["network_name"],
                 driver="bridge",
                 check_duplicate=True)
-            if running_in_container:
+            if self.running_in_container:
                 local_network.connect("orch-controller") #TODO Avoid embedding this string inside the code
             self.local_connections["docker"]["networks"][self.local_conf["network_name"]] = local_network
         except:
@@ -71,7 +141,7 @@ class GethManager:
                 '8545/tcp': '8545'
             }, name=self.local_conf["node_name"], network=self.local_conf["network_name"])
         self.local_connections["docker"]["containers"][self.local_conf["node_name"]] = local_geth_node
-        if running_in_container:
+        if self.running_in_container:
             self.local_connections["web3"] = Web3(HTTPProvider("http://%s:8545" % self.local_conf["node_name"]))
         else:
             self.local_connections["web3"] = Web3(HTTPProvider("http://localhost:8545"))
@@ -79,56 +149,6 @@ class GethManager:
             self.logger.info("Initialized local eth node")
         else:
             raise Exception("Can't contact local Geth node. Please abort the deploy.")
-        
-
-    def start(self, genesis_file, wait=True):
-        if wait:
-            self._start(genesis_file)
-        else:
-            start_th = Thread(target=self._start, args=(genesis_file,))
-            start_th.start()
-
-    def stop(self, cleanup=False):
-        for host in self.hosts:
-            for _, container in self.host_connections[host]["docker"]["containers"].items():
-                container.stop()
-                container.remove()
-            if cleanup:
-                self.cleanup(host=host)
-
-    def cleanup(self, host=None):
-        if host == None:
-            for host in self.hosts:
-                self._cleanup(host)
-        else:
-            self._cleanup(host)
-    
-    def deinit(self):
-        for _, container in self.local_connections["docker"]["containers"].items():
-            container.stop()
-            container.remove()
-        self.local_connections["docker"]["client"].close()
-        for host in self.hosts:
-            for _, network in self.host_connections[host]["docker"]["networks"].items():
-                network.remove()
-                self.logger.info("[{0}]Network removed".format(host))
-            self.host_connections[host]["docker"]["client"].close()
-            self.host_connections[host]["ssh"].close()
-
-    # Topology definition methods
-
-    def full_mesh(self): #TODO _start_node function should populate enodes array
-        enodes = []
-        for host in self.hosts:
-            web3 = self.host_connections[host]["web3"]
-            enode = self.substitute_enode_ip(web3.admin.nodeInfo["enode"], host)
-            enodes.append(enode)
-            self.logger.debug("Added enode: %s" % enode)
-            for i in range(len(enodes)-1):
-                web3.admin.addPeer(enodes[i])
-                self.logger.debug("Added node %s to node %s", enodes[i], host)
-
-    # Utility methods. These should not be called from externally.
 
     def _init_host_connections(self):
         self.host_connections = {}
@@ -239,10 +259,34 @@ class GethManager:
         else:
             self.logger.error("[{0}]Error deploying node".format(host))
     
-    def _cleanup(self, host):
-        self.logger.info("[{0}]Data cleaned".format(host))
+    def _cleanup(self):
+        for host in self.hosts:
+            self._cleanup_host(host)
+    
+    def _cleanup_host(self, host):
         ssh = self.host_connections[host]["ssh"]
         ssh.sudo("rm -rf %s" % self.host_conf["datadir"])
+        self.logger.info("[{0}]Data cleaned".format(host))
+
+    def _stop(self, cleanup=False):
+        for host in self.hosts:
+            for _, container in self.host_connections[host]["docker"]["containers"].items():
+                container.stop()
+                container.remove()
+            if cleanup:
+                self._cleanup_host(host)
+    
+    def _deinit(self):
+        for _, container in self.local_connections["docker"]["containers"].items():
+            container.stop()
+            container.remove()
+        self.local_connections["docker"]["client"].close()
+        for host in self.hosts:
+            for _, network in self.host_connections[host]["docker"]["networks"].items():
+                network.remove()
+                self.logger.info("[{0}]Network removed".format(host))
+            self.host_connections[host]["docker"]["client"].close()
+            self.host_connections[host]["ssh"].close()
 
     @staticmethod
     def substitute_enode_ip(enode, new_ip):
@@ -268,8 +312,8 @@ if __name__ == "__main__":
     from host_manager import HostManager
     host_manager = HostManager("hosts", False)
     hosts = host_manager.get_hosts()
-    manager = GethManager(hosts)
-    manager.init(False)
+    manager = GethManager(hosts, False)
+    manager.init()
     manager.start("genesis.json")
     time.sleep(180)
     manager.stop(cleanup=True)
