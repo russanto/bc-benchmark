@@ -43,6 +43,7 @@ class HostManager:
                         for host in hosts:
                                 try:
                                         self._reserved_hosts.remove(host)
+                                        self._hosts.append(host)
                                 except ValueError:
                                         self.logger.error("Can't free host {0}. It wasn't previously reserved".format(host))
         
