@@ -31,10 +31,13 @@ class GethManager:
         self.hosts = hosts
         self.is_initialized = False
         self.logger = logging.getLogger("GethManager")
+        if "LOCAL_NODE_DIR" in os.environ:
+            self.local_conf["datadir"] = os.environ["LOCAL_NODE_DIR"]
 
     # Lifecycle methods
 
     def init(self, running_in_container=True):
+        self.running_in_container = running_in_container
         self._init_host_connections()
         local_docker = docker.from_env()
         self.local_connections = {"docker": {"client": local_docker, "containers": {}, "networks": {}}}
@@ -52,7 +55,8 @@ class GethManager:
                 self.local_conf["network_name"],
                 driver="bridge",
                 check_duplicate=True)
-            local_network.connect("orch-controller") #TODO Avoid embedding this string inside the code
+            if running_in_container:
+                local_network.connect("orch-controller") #TODO Avoid embedding this string inside the code
             self.local_connections["docker"]["networks"][self.local_conf["network_name"]] = local_network
         except:
             self.logger.info("[LOCAL]Network already deployed")
@@ -162,7 +166,10 @@ class GethManager:
 
     def _start(self, genesis_file): #TODO launch multiple parallel threads
         self._init_genesis(len(self.hosts), genesis_file)
-        keystore_dir = "/root/ethereum/.ethereum/keystore"
+        if self.running_in_container:
+            keystore_dir = "/root/ethereum/.ethereum/keystore"
+        else:
+            keystore_dir = os.path.join(self.local_conf["datadir"], ".ethereum/keystore")
         pvt_key_file_list = os.listdir(keystore_dir)
         for host in self.hosts:
             self._copy_genesis(host, genesis_file)

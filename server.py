@@ -22,7 +22,7 @@ if "LOG_LEVEL" in os.environ:
 
 RUNNING_IN_CONTAINER = True
 if "RUNNING_IN_CONTAINER" in os.environ:
-    if os.environ["RUNNING_IN_CONTAINER"] == 0:
+    if os.environ["RUNNING_IN_CONTAINER"] == 0 or os.environ["RUNNING_IN_CONTAINER"] == "0":
         RUNNING_IN_CONTAINER = False
 
 UPLOAD_FOLDER = "/root/uploads"
