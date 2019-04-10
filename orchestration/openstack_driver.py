@@ -6,7 +6,12 @@ import time
 
 class OpenstackDriver:
 
+    base_image = "Ubuntu18-Docker-API"
+
+    controller_flavor = "m1.small"
     controller_port = 5000
+
+    node_flavor = "m1.small"
 
     ssh_key_controller = "AntonioMac"
     ssh_key_nodes = "Deployer"
@@ -24,8 +29,8 @@ class OpenstackDriver:
         self.logger.info("Deploying controller")
         server = self.connection.create_server(
             "BC-Orch-Controller",
-            image="Ubuntu18-Docker",
-            flavor="m1.small",
+            image=self.base_image,
+            flavor=self.controller_flavor,
             userdata=self.get_controller_init_script(),
             key_name=self.ssh_key_controller
         )
@@ -55,8 +60,8 @@ class OpenstackDriver:
         # Create node instances
         server = self.connection.create_server(
             label,
-            image="Ubuntu18-Docker",
-            flavor="m1.small",
+            image=self.base_image,
+            flavor=self.node_flavor,
             userdata=self.get_nodes_init_script(self.controller["private_v4"]),
             group=group,
             min_count=quantity,

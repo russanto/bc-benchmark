@@ -39,8 +39,12 @@ class GethOpenstack:
                     if response.status_code == 412:
                         self.logger.debug("Nodes not yet started")
                         time.sleep(5)
+                    elif response.status_code == 403:
+                        self.logger.error("Genesis not valid")
+                        return
                     else:
                         started = True
+                        print(response.json())
                         self.logger.info("Geth network started")
                 except requests.exceptions.ConnectionError:
                     self.logger.debug("Server controller not available") #TODO Improve exception management

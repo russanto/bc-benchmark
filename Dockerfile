@@ -3,7 +3,8 @@ RUN apt-get update && apt-get install -y apt-transport-https ca-certificates cur
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
 RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 RUN apt-get update && apt-get install -y docker-ce-cli
-WORKDIR /root
-COPY . /root/
-RUN pip install fabric && pip install requests && pip install flask
+RUN mkdir /controller
+WORKDIR /controller
+COPY . /controller/
+RUN pip install -r requirements.txt
 CMD [ "python", "server.py" ]
