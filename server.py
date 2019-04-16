@@ -35,7 +35,7 @@ app = Flask("BC-Orch-Controller")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 #TODO Implementare prenotazione host
-host_manager = HostManager("hosts")
+host_manager = HostManager()
 bc_manager = {}
 
 @app.route('/ready')
@@ -49,7 +49,7 @@ def notify_ready(ip_ready):
 
 @app.route('/start/multichain/<int:nodes_count>', methods=['GET', 'POST'])
 def start(nodes_count):
-    hosts = host_manager.get_hosts(nodes_count, reserve=True)
+    hosts = host_manager.reserve_hosts(nodes_count)
     if hosts:
         deploy_id = uuid.uuid4()
         bp_manager = BlockBenchmarkHandler(hosts[0:nodes_count], logger_host)
@@ -68,7 +68,7 @@ def start_geth(nodes_count):
     file = request.files['genesis']
     if file.filename == '':
         return jsonify({"message": 'Empty json found'}), 403
-    hosts = host_manager.get_hosts(nodes_count, reserve=True)
+    hosts = host_manager.reserve_hosts(nodes_count)
     if hosts:
         genesis_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(genesis_file)
@@ -96,4 +96,3 @@ def stop_geth(deploy_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
-    host_manager.close()

@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import queue
-from threading import Thread
+from threading import Event, Thread
 import time
 from web3 import Web3, HTTPProvider, WebsocketProvider
 import web3.admin
@@ -50,6 +50,8 @@ class GethManager:
             self.keystore_dir = "/root/ethereum/.ethereum/keystore"
         else:
             self.keystore_dir = os.path.join(self.local_conf["datadir"], ".ethereum/keystore")
+        self.deployed_keys = {}
+        self.deployed_keys_available = Event() 
         self.cmd_queue = queue.Queue()
         cmd_th = Thread(target=self._main_cmd_thread)
         cmd_th.start()
@@ -59,8 +61,7 @@ class GethManager:
     def init(self):
         self.cmd_queue.put({
             "type": self.CMD_INIT
-        })
-        
+        }) 
 
     def start(self, genesis_file):
         self.cmd_queue.put({
@@ -85,6 +86,16 @@ class GethManager:
         })
         self.cmd_queue.put({"type": self.CMD_CLOSE})
 
+    def get_etherbases(self, wait=True):
+        if wait:
+            self.deployed_keys_available.wait()
+            return self.deployed_keys.copy()
+        else:
+            if self.deployed_keys_available.is_set():
+                return self.deployed_keys.copy()
+            else:
+                return False
+    
     # Topology definition methods
 
     def full_mesh(self): #TODO _start_node function should populate enodes array
@@ -192,7 +203,7 @@ class GethManager:
             return
         connection.put(file_path, remote=datadir + "/genesis.json")
 
-    def _start(self, genesis_file): #TODO launch multiple parallel threads
+    def _start(self, genesis_file):
         deployers = []
         host_queue = queue.Queue()
         self._init_genesis(len(self.hosts), genesis_file)
@@ -207,6 +218,7 @@ class GethManager:
             host_queue.put("") # The empty string is the stop signal for the _start_node thread
         for deployer in deployers:
             deployer.join()
+        self.deployed_keys_available.set()
         self.full_mesh()
         
     def _start_node(self, genesis_file, host_queue): #TODO set mining threads
@@ -235,7 +247,7 @@ class GethManager:
             self.logger.debug("[{0}]DB initiated".format(host))
             self.host_connections[host]["docker"]["containers"][self.host_conf["node_name"]] = docker_client.containers.run(
                 "ethereum/client-go:stable",
-                "--rpc --rpcaddr 0.0.0.0 --rpcvhosts=* --rpcapi admin,eth,miner,personal,web3 --nodiscover --etherbase {0} --mine --minerthreads 2".format(etherbase),
+                "--rpc --rpcaddr 0.0.0.0 --rpcvhosts=* --rpcapi admin,eth,miner,personal,web3 --nodiscover --etherbase {0} --mine --minerthreads 2 --gasprice 1".format(etherbase),
                 name=self.host_conf["node_name"],
                 volumes={
                     self.host_conf["datadir"]: {
@@ -262,6 +274,7 @@ class GethManager:
                 pvt_key = web3.eth.account.decrypt(pvt_key_enc, self.host_pvt_key_pw)
                 web3.personal.importRawKey(pvt_key, self.host_pvt_key_pw)
                 self.logger.info("[{0}]Imported {1} private key".format(host, etherbase))
+                self.deployed_keys[host] = etherbase
             self.logger.info("[{0}]Deployed Geth node with etherbase {1}".format(host, etherbase))
             host_data = host_queue.get()
     
@@ -331,7 +344,10 @@ class GethManager:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     from host_manager import HostManager
-    host_manager = HostManager("hosts", False)
+    import sys
+    hosts_file_path = sys.argv[1]
+    host_manager = HostManager()
+    host_manager.add_hosts_from_file(hosts_file_path)
     hosts = host_manager.get_hosts()
     manager = GethManager(hosts, False)
     manager.init()
@@ -339,4 +355,3 @@ if __name__ == "__main__":
     time.sleep(180)
     manager.stop(cleanup=True)
     manager.deinit()
-    host_manager.close()
