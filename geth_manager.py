@@ -278,6 +278,7 @@ class GethManager:
             deployer.start()
             deployers.append(deployer)
             host_queue.put("") # The empty string is the stop signal for the _start_node_thread
+            time.sleep(1)
         for deployer in deployers:
             deployer.join()
         if include_local_node:
