@@ -12,6 +12,8 @@ import web3.admin
 
 from host_manager import HostManager
 
+# TODO: Implement wait function for bc to be ready
+
 class GethManager:
 
     ETHASH = "ethash"
@@ -272,10 +274,10 @@ class GethManager:
             key_file = pvt_key_file_list.pop()
             host_queue.put({"host": host, "etherbase_key_file": key_file})
         for _ in range(min(self.N_DEPLOYER_THREADS, len(self.hosts))):
-            deployer = Thread(target=self._start_node, args=(genesis_file, host_queue,))
+            deployer = Thread(target=self._start_node_thread, args=(genesis_file, host_queue,))
             deployer.start()
             deployers.append(deployer)
-            host_queue.put("") # The empty string is the stop signal for the _start_node thread
+            host_queue.put("") # The empty string is the stop signal for the _start_node_thread
         for deployer in deployers:
             deployer.join()
         if include_local_node:
@@ -286,7 +288,7 @@ class GethManager:
         self.deployed_keys_available.set()
         self.full_mesh()
         
-    def _start_node(self, genesis_file, host_queue): #TODO set mining threads
+    def _start_node_thread(self, genesis_file, host_queue): #TODO set mining threads
         host_data = host_queue.get()
         while host_data != "":
             host = host_data["host"]
@@ -334,16 +336,8 @@ class GethManager:
             else:
                 self.logger.error("[{0}]Error deploying node".format(host))
             
-            # Unlock the etherbase account
-            web3 = self.host_connections[host]["web3"]
-            # with open(os.path.join(self.keystore_dir, etherbase_key_file)) as pvt_key_file:
-            #     pvt_key_enc = pvt_key_file.read()
-            #     pvt_key = web3.eth.account.decrypt(pvt_key_enc, self.host_conf["account_password"])
-            #     web3.personal.importRawKey(pvt_key, self.host_conf["account_password"])
-            #     self.logger.info("[{0}]Imported {1} private key".format(host, etherbase))
-            #     self.deployed_keys[host] = etherbase
+            self.deployed_keys[host] = etherbase
             self.logger.info("[{0}]Deployed Geth node with etherbase {1}".format(host, etherbase))
-            web3
             host_data = host_queue.get()
         
     def _copy_password(self, host, password, password_file_name="password"):
@@ -390,6 +384,7 @@ class GethManager:
             for _, container in self.host_connections[host]["docker"]["containers"].items():
                 container.stop()
                 container.remove()
+            self.logger.info("[%s]Stopped" % host)
             if cleanup:
                 self._cleanup_host(host)
     
@@ -399,9 +394,6 @@ class GethManager:
             container.remove()
         self.local_connections["docker"]["client"].close()
         for host in self.hosts:
-            for _, network in self.host_connections[host]["docker"]["networks"].items():
-                network.remove()
-                self.logger.info("[{0}]Network removed".format(host))
             self.host_connections[host]["docker"]["client"].close()
             self.host_connections[host]["ssh"].close()
 
