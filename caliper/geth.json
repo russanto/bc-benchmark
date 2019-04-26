@@ -1,0 +1,14 @@
+{
+    "caliper": {
+        "blockchain": "geth"
+    },
+    "geth": {
+        "url": "http://127.0.0.1:8545",
+        "contractDeployerAddress": "0xf5ac140a2401e76f2ec5ea006cd66d2b4428f693",
+        "registryAddress": "0xee6c3976a157af5955e641d9298e4c7067b26ae1",
+        "fromAddress": "0xf5AC140a2401e76F2ec5eA006cd66d2b4428f693",
+        "contracts": {
+            "simple": { "path": "src/contract/geth/simple/simple.json" }
+        }
+    }
+}
