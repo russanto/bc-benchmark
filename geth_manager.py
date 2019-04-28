@@ -186,7 +186,7 @@ class GethManager:
             })
         local_geth_node = local_docker.containers.run(
             "ethereum/client-go:stable",
-            "--rpc --rpcapi admin,eth,miner,personal,web3 --rpcaddr 0.0.0.0 --rpcvhosts=* --nodiscover", detach=True, volumes={
+            "--rpc --rpcapi admin,eth,miner,personal,web3 --rpcaddr 0.0.0.0 --rpcvhosts=* --rpccorsdomain \"http://remix.ethereum.org\" --nodiscover", detach=True, volumes={
                 self.local_conf["datadir"]: {
                     'bind': '/root',
                     'mode': 'rw'
