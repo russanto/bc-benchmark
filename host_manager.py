@@ -76,8 +76,9 @@ class HostManager:
 
         @staticmethod
         def get_local_connections(check=True):
+                local_connections = {}
                 if "SERVER_IP" in os.environ:
-                        local_connections = {"ip": os.environ["SERVER_IP"]}
+                        local_connections["ip"] = os.environ["SERVER_IP"]
                 local_docker = docker.from_env()
                 local_connections["docker"] = {"client": local_docker, "containers": {}, "networks": {}}
                 if check:
@@ -86,5 +87,4 @@ class HostManager:
                         except:
                                 del local_connections["docker"]
                                 print("Docker not available locally")
-
                 return local_connections

@@ -3,8 +3,10 @@ import json
 import logging
 import os
 import queue
+import sys
 from threading import Thread
 from web3 import Web3, HTTPProvider
+import yaml
 
 from deploy_manager import DeployManager
 from host_manager import HostManager
@@ -16,8 +18,9 @@ class CaliperManager(DeployManager):
     remote_caliper_dir = "/home/ubuntu/caliper"
     server_container_name = "caliper"
     client_container_name = "zookeeper-client"
-    caliper_datadir = "/Users/antonio/Documents/Universita/INSA/bc-benchmark/caliper"
-    reports_dir = "/Users/antonio/Documents/Universita/INSA/hyperledger/russanto/caliper/reports"
+    local_datadir = "/home/ubuntu/caliper"
+    container_datadir = "/root"
+    reports_dir = "/home/ubuntu/reports"
 
     def __init__(self, bc_manager):
         super().__init__()
@@ -25,7 +28,28 @@ class CaliperManager(DeployManager):
         self.bc_manager = bc_manager
         self.hosts_addresses = bc_manager.get_etherbases() #TODO Manage the wait time and an eventual timeout
         self.enable_cmd(self.CMD_INIT, self.CMD_START, self.CMD_CLEANUP)
+        self.running_in_container = True
         self.is_initialized = False
+    
+    def parse_conf(self, conf_as_dict): # TODO integrate this function inside kwargs on __init__
+        if "RUNNING_IN_CONTAINER" not in conf_as_dict:
+            self.running_in_container = False
+        if "CALIPER_DATADIR" in conf_as_dict:
+            self.local_datadir = conf_as_dict["CALIPER_DATADIR"]
+        if "REPORTS_DIR" in conf_as_dict:
+            self.reports_dir = conf_as_dict["REPORTS_DIR"]
+    
+    def get_datadir(self, join_dir=""):
+        if self.running_in_container:
+            return os.path.join(self.container_datadir, join_dir)
+        else:
+            return os.path.join(self.local_datadir, join_dir)
+    
+    def get_local_node_endpoint(self):
+        if self.running_in_container:
+            return self.bc_manager.local_conf["node_name"]
+        else:
+            return "localhost"
 
     def _init(self):
         self.hosts_connections = HostManager.get_hosts_connections(self.hosts_addresses.keys())
@@ -61,17 +85,17 @@ class CaliperManager(DeployManager):
                     self.logger.error(error)
         else:
             self.logger.error("Can't initialize: error with local docker client")
-        self.registry_address = self.deploy_registry("localhost") # TODO: do all the check to ensure that the node exists and is reachable
+        self.registry_address = self.deploy_registry(self.get_local_node_endpoint())
         self.is_initialized = True
 
     def _start(self):
-        with open(os.path.join(self.caliper_datadir, "geth.json")) as geth_json_file:
+        with open(self.get_datadir("geth.json")) as geth_json_file:
             geth_conf = json.load(geth_json_file)
         geth_conf["geth"]["url"] = "http://geth-node:8545"
         geth_conf["geth"]["registryAddress"] = self.registry_address
         geth_conf["geth"]["contractDeployerAddress"] = self.bc_manager.local_conf["default_account"]
         geth_conf["geth"]["fromAddressPassword"] = ""
-        with open(os.path.join(self.caliper_datadir, "geth.json"), "w") as geth_json_file:
+        with open(self.get_datadir("geth.json"), "w") as geth_json_file:
             json.dump(geth_conf, geth_json_file)
         remote_file_path = os.path.join(self.remote_caliper_dir, "geth.json")
         host_queue = queue.Queue()
@@ -95,7 +119,7 @@ class CaliperManager(DeployManager):
             connections = self.hosts_connections[host]
             geth_conf = geth_conf.copy()
             geth_conf["geth"]["fromAddress"] = self.hosts_addresses[host]
-            tmp_file_name = os.path.join(self.caliper_datadir, "geth-tmp-{0}.json".format(host))
+            tmp_file_name = self.get_datadir("geth-tmp-{0}.json".format(host))
             with open(tmp_file_name, "w") as tmp_file:
                 json.dump(geth_conf, tmp_file)
             try:
@@ -122,6 +146,17 @@ class CaliperManager(DeployManager):
             host = host_queue.get()
 
     def _start_caliper_workload(self):
+        # Adds to the workload conf all the host to monitor
+        docker_rapi_hosts = []
+        for host in self.hosts_addresses.keys():
+            docker_rapi_hosts.append("http://%s:2375/geth-node" % host)
+        with open(self.get_datadir("config-geth.yaml")) as config_file:
+            config_data = yaml.load(config_file)
+        config_data["monitor"]["docker"]["name"] = docker_rapi_hosts
+        with open(self.get_datadir("config-geth.yaml"), "w") as config_file:
+            yaml.dump(config_data, config_file, default_flow_style=False)
+        self.logger.info("Updated workload configuration")
+
         self.logger.info("Starting caliper")
         local_docker = self.local_connections["docker"]["client"]
         self.local_connections["docker"]["containers"][self.server_container_name] = local_docker.containers.run(
@@ -130,7 +165,11 @@ class CaliperManager(DeployManager):
             detach=True,
             network=self.bc_manager.local_conf["network_name"],
             volumes={
-                os.path.join(self.caliper_datadir, "geth.json"): {
+                os.path.join(self.local_datadir, "config-geth.yaml"): { # This must point to local host datadir
+                    "bind": "/caliper/benchmark/simple/config-geth.yaml",
+                    "mode": "rw"
+                },
+                os.path.join(self.local_datadir, "geth.json"): { # This must point to local host datadir
                     "bind": "/caliper/network/geth/geth.json",
                     "mode": "rw"
                 },
@@ -167,7 +206,8 @@ class CaliperManager(DeployManager):
 
     def deploy_registry(self, node):
         web3 = Web3(HTTPProvider("http://%s:8545" % node))
-        with open(os.path.join(self.caliper_datadir, "registry.json")) as registry_info_file:
+        self.bc_manager.check_web3_cnx(web3)
+        with open(self.get_datadir("registry.json")) as registry_info_file:
             registry_data = json.load(registry_info_file)
         Registry = web3.eth.contract(abi=registry_data["abi"], bytecode=registry_data["bytecode"])
         self.logger.info("Creating registry")
@@ -182,9 +222,9 @@ class CaliperManager(DeployManager):
             registry_creation = web3.eth.waitForTransactionReceipt(registry_tx_hash)
             self.logger.info("Created registry at %s" % registry_creation.contractAddress)
             return registry_creation.contractAddress
-        except Exception as e:
+        except:
             self.logger.error("Error creating registry")
-            print(e)
+            raise
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
@@ -195,13 +235,15 @@ if __name__ == "__main__":
     host_manager = HostManager()
     host_manager.add_hosts_from_file(hosts_file_path)
     hosts = host_manager.get_hosts()
-    manager = GethManager(hosts, False)
+    manager = GethManager(hosts)
+    manager.parse_conf(os.environ)
     manager.set_consensus_protocol(GethManager.CLIQUE)
     manager.init()
     manager.cleanup()
     manager.start("clique.json")
     time.sleep(60)
     caliper_manager = CaliperManager(manager)
+    caliper_manager.parse_conf(os.environ)
     caliper_manager.init()
     caliper_manager.cleanup()
     caliper_manager.start()

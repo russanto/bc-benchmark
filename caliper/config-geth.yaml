@@ -1,0 +1,50 @@
+monitor:
+  docker:
+    name:
+    - http://192.168.20.150:2375/geth-node
+    - http://192.168.20.151:2375/geth-node
+    - http://192.168.20.155:2375/geth-node
+    - http://192.168.20.156:2375/geth-node
+  interval: 1
+  type:
+  - docker
+test:
+  clients:
+    type: zookeeper
+    zoo:
+      clientPerHost: 1
+      server: zookeeper:2181
+  description: This is an example benchmark for caliper, to test the backend DLT's
+    performance with simple account opening & querying transactions
+  name: simple
+  rounds:
+  - arguments:
+      money: 10000
+    callback: benchmark/simple/open.js
+    label: open
+    rateControl:
+    - opts:
+        tps: 1
+      type: fixed-rate
+    - opts:
+        tps: 2
+      type: fixed-rate
+    - opts:
+        tps: 3
+      type: fixed-rate
+    txNumber:
+    - 20
+    - 40
+    - 60
+  - callback: benchmark/simple/query.js
+    label: query
+    rateControl:
+    - opts:
+        tps: 4
+      type: fixed-rate
+    - opts:
+        tps: 8
+      type: fixed-rate
+    txNumber:
+    - 40
+    - 80
