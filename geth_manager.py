@@ -40,6 +40,7 @@ class GethManager:
 
     local_conf = {
         "datadir": "/home/ubuntu/ethereum",
+        "container_datadir": "/root/ethereum",
         "network_name": "benchmark",
         "node_name": "geth-node",
         "default_account": "",
@@ -51,20 +52,20 @@ class GethManager:
         self.running_in_container = running_in_container
         self.is_initialized = False
         self.logger = logging.getLogger("GethManager")
-        if "LOCAL_NODE_DIR" in os.environ:
-            self.local_conf["datadir"] = os.environ["LOCAL_NODE_DIR"]
-        if "N_DEPLOYER_THREADS" in os.environ:
-            self.N_DEPLOYER_THREADS = int(os.environ["N_DEPLOYER_THREADS"])
-        if running_in_container:
-            self.keystore_dir = "/root/ethereum/.ethereum/keystore"
-        else:
-            self.keystore_dir = os.path.join(self.local_conf["datadir"], ".ethereum/keystore")
         self.deployed_keys = {}
         self.deployed_keys_available = Event()
         self.consensus_protocol = self.ETHASH 
         self.cmd_queue = queue.Queue()
         cmd_th = Thread(target=self._main_cmd_thread)
         cmd_th.start()
+
+    def parse_conf(self, conf_as_dict):
+        if "N_DEPLOYER_THREADS" in conf_as_dict:
+            self.N_DEPLOYER_THREADS = int(conf_as_dict["N_DEPLOYER_THREADS"])
+        if "LOCAL_NODE_DIR" in conf_as_dict:
+            self.set_local_datadir(conf_as_dict["LOCAL_NODE_DIR"])
+        if "RUNNING_IN_CONTAINER" not in conf_as_dict:
+            self.running_in_container = False
 
     # Lifecycle methods
 
@@ -146,6 +147,7 @@ class GethManager:
             cmd = self.cmd_queue.get()
 
     def _init(self):
+        self._create_local_dir()
         self._init_host_connections()
         local_docker = docker.from_env()
         self.local_connections = HostManager.get_local_connections()
@@ -175,11 +177,11 @@ class GethManager:
 
     def _start_local_node(self, genesis_file_path=""):
         local_docker = self.local_connections["docker"]["client"]
-        shutil.rmtree(os.path.join(self.local_conf["datadir"], ".ethereum/geth"))
+        self._clean_local_dir(".ethereum/geth")
         if genesis_file_path != "":
-            shutil.copyfile(genesis_file_path, os.path.join(self.local_conf["datadir"], "genesis.json"))
+            shutil.copyfile(genesis_file_path, self.get_local_datadir("genesis.json"))
             local_docker.containers.run("ethereum/client-go:stable", "init /root/genesis.json", volumes={
-                self.local_conf["datadir"]: {
+                self.local_conf["datadir"]: { # This points always to the controller host datadir
                     "bind": "/root",
                     "mode": "rw"
                 }
@@ -187,7 +189,7 @@ class GethManager:
         local_geth_node = local_docker.containers.run(
             "ethereum/client-go:stable",
             "--rpc --rpcapi admin,eth,miner,personal,web3 --rpcaddr 0.0.0.0 --rpcvhosts=* --rpccorsdomain \"http://remix.ethereum.org\" --nodiscover", detach=True, volumes={
-                self.local_conf["datadir"]: {
+                self.local_conf["datadir"]: { # This points always to the controller host datadir
                     'bind': '/root',
                     'mode': 'rw'
                 }
@@ -220,7 +222,7 @@ class GethManager:
             }
 
     def _init_genesis(self, n_nodes, genesis_file_path):
-        shutil.rmtree(os.path.join(self.local_conf["datadir"], ".ethereum/keystore"))
+        self._clean_local_dir(".ethereum/keystore")
         with open(genesis_file_path) as genesis_file:
             genesis_dict = json.load(genesis_file)
         if not "alloc" in genesis_dict or not isinstance(genesis_dict["alloc"], dict):
@@ -254,22 +256,38 @@ class GethManager:
         if not make_datadir.ok:
             print("Error creating datadir %s" % datadir)
             return
-        connection.put(file_path, remote=datadir + "/genesis.json")
+        connection.put(file_path, remote=os.path.join(datadir, "genesis.json"))
     
     def _copy_account_key(self, host, account_key): #TODO Must manage the errors
         remote_path = os.path.join(self.host_conf["datadir"], ".ethereum/keystore")
         ssh_cnx = self.host_connections[host]["ssh"]
-        keystore_dir = ssh_cnx.run("mkdir -p %s" % remote_path)
-        if not keystore_dir.ok:
+        make_keystore_dir = ssh_cnx.run("mkdir -p %s" % remote_path)
+        if not make_keystore_dir.ok:
             self.logger.error("[{0}]Error creating keystore dir".format(host))
             return
         ssh_cnx.put(account_key, remote=remote_path)
+    
+    def _create_local_dir(self):
+        if not os.path.exists(self.get_local_datadir()):
+            os.makedirs(self.get_local_datadir())
+
+    def _clean_local_dir(self, subdir=""):
+        try:
+            to_clean = self.get_local_datadir(subdir)
+            self.logger.debug("Cleaning %s" % to_clean)
+            shutil.rmtree(to_clean)
+            self.logger.info("Local %s successfully cleaned" % subdir)
+        except FileNotFoundError:
+            self.logger.warning("%s not cleaned because not found" % subdir)
+        except Exception as error:
+            self.logger.error(error)
+
 
     def _start(self, genesis_file, include_local_node=True):
         deployers = []
         host_queue = queue.Queue()
         self._init_genesis(len(self.hosts), genesis_file)
-        pvt_key_file_list = sorted(os.listdir(self.keystore_dir), reverse=True)
+        pvt_key_file_list = sorted(os.listdir(self.get_keystore_dir()), reverse=True)
         for host in self.hosts:
             key_file = pvt_key_file_list.pop()
             host_queue.put({"host": host, "etherbase_key_file": key_file})
@@ -296,7 +314,7 @@ class GethManager:
             etherbase_key_file = host_data["etherbase_key_file"]
             self.logger.debug("Deploying node at %s" % host)
             self._copy_genesis(host, genesis_file)
-            self._copy_account_key(host, os.path.join(self.keystore_dir, etherbase_key_file))
+            self._copy_account_key(host, os.path.join(self.get_keystore_dir(), etherbase_key_file))
             self._copy_password(host, self.host_conf["account_password"])
             etherbase = etherbase_key_file.split("--")[2]
             docker_client = self.host_connections[host]["docker"]["client"]
@@ -409,13 +427,25 @@ class GethManager:
         port_index = requested_enode.find(":30303")
         return requested_enode[0:at_index+1] + host + requested_enode[port_index:]
     
+    def get_local_datadir(self, join_dir=""):
+        if self.running_in_container:
+            return os.path.join(self.local_conf["container_datadir"], join_dir)
+        else:
+            return os.path.join(self.local_conf["datadir"], join_dir)
+    
+    def set_local_datadir(self, datadir):
+        self.local_conf["datadir"] = datadir
+    
+    def get_keystore_dir(self):
+        return self.get_local_datadir(".ethereum/keystore")
+    
     @staticmethod
     def check_web3_cnx(web3, attempts=10, delay_between_attempts=1):
         a = 0
         while a < attempts:
             try:
                 return web3.version.node
-            except Exception as e:
+            except: #TODO should see if it is worth to continue basing on which exception is raised
                 a += 1
                 time.sleep(delay_between_attempts)
         return False
@@ -430,11 +460,12 @@ if __name__ == "__main__":
     host_manager = HostManager()
     host_manager.add_hosts_from_file(hosts_file_path)
     hosts = host_manager.get_hosts()
-    manager = GethManager(hosts, False)
+    manager = GethManager(hosts)
+    manager.parse_conf(os.environ)
     manager.set_consensus_protocol(GethManager.CLIQUE)
     manager.init()
     manager.cleanup()
     manager.start("clique.json")
-    time.sleep(120)
+    time.sleep(100)
     manager.stop()
     manager.deinit()
