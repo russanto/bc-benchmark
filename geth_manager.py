@@ -42,9 +42,7 @@ class GethManager:
         "datadir": "/home/ubuntu/ethereum",
         "container_datadir": "/root/ethereum",
         "network_name": "benchmark",
-        "node_name": "geth-node",
-        "default_account": "",
-        "default_account_password": ""
+        "node_name": "geth-node"
     }
 
     def __init__(self, hosts, running_in_container=True): #TODO Use symbolic names for dns resolution in custom docker network
@@ -233,9 +231,9 @@ class GethManager:
             newAccount = web3_local.personal.newAccount(self.host_conf["account_password"])
             genesis_dict["alloc"][newAccount] = {}
             genesis_dict["alloc"][newAccount]["balance"] = "0x200000000000000000000000000000000000000000000000000000000000000"
-            if i == n_nodes and self.local_conf["default_account"] == "":
-                self.local_conf["default_account"] = newAccount
-                self.local_conf["default_account_password"] = self.host_conf["account_password"]
+            if i == n_nodes:
+                self.utility_account = newAccount
+                self.utility_account_password = self.host_conf["account_password"]
             else:
                 self.miner_accounts.append(newAccount)
             time.sleep(0.05) # To ensure that keyfile names are ordered according to creation time

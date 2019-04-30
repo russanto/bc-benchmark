@@ -5,6 +5,7 @@ import os
 import queue
 import sys
 from threading import Thread
+import time
 from web3 import Web3, HTTPProvider
 import yaml
 
@@ -19,8 +20,9 @@ class CaliperManager(DeployManager):
     server_container_name = "caliper"
     client_container_name = "zookeeper-client"
     local_datadir = "/home/ubuntu/caliper"
-    container_datadir = "/root"
+    container_datadir = "/root/caliper"
     reports_dir = "/home/ubuntu/reports"
+    tmp_dir = "tmp"
 
     def __init__(self, bc_manager):
         super().__init__()
@@ -93,7 +95,7 @@ class CaliperManager(DeployManager):
             geth_conf = json.load(geth_json_file)
         geth_conf["geth"]["url"] = "http://geth-node:8545"
         geth_conf["geth"]["registryAddress"] = self.registry_address
-        geth_conf["geth"]["contractDeployerAddress"] = self.bc_manager.local_conf["default_account"]
+        geth_conf["geth"]["contractDeployerAddress"] = self.bc_manager.utility_account
         geth_conf["geth"]["fromAddressPassword"] = ""
         with open(self.get_datadir("geth.json"), "w") as geth_json_file:
             json.dump(geth_conf, geth_json_file)
@@ -119,7 +121,7 @@ class CaliperManager(DeployManager):
             connections = self.hosts_connections[host]
             geth_conf = geth_conf.copy()
             geth_conf["geth"]["fromAddress"] = self.hosts_addresses[host]
-            tmp_file_name = self.get_datadir("geth-tmp-{0}.json".format(host))
+            tmp_file_name = os.path.join(self.tmp_dir, "geth-tmp-{0}.json".format(host))
             with open(tmp_file_name, "w") as tmp_file:
                 json.dump(geth_conf, tmp_file)
             try:
@@ -212,11 +214,11 @@ class CaliperManager(DeployManager):
         Registry = web3.eth.contract(abi=registry_data["abi"], bytecode=registry_data["bytecode"])
         self.logger.info("Creating registry")
         try:
-            web3.personal.unlockAccount(self.bc_manager.local_conf["default_account"], self.bc_manager.local_conf["default_account_password"])
+            web3.personal.unlockAccount(self.bc_manager.utility_account, self.bc_manager.utility_account_password)
             registry_contructed = Registry.constructor()
             registry_estimated_gas = registry_contructed.estimateGas()
             registry_tx_hash = registry_contructed.transact({
-                "from": self.bc_manager.local_conf["default_account"],
+                "from": self.bc_manager.utility_account,
                 "gas": registry_estimated_gas
             })
             registry_creation = web3.eth.waitForTransactionReceipt(registry_tx_hash)

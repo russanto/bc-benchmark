@@ -79,6 +79,8 @@ class HostManager:
                 local_connections = {}
                 if "SERVER_IP" in os.environ:
                         local_connections["ip"] = os.environ["SERVER_IP"]
+                else:
+                        logging.getLogger("HostManager").warning("env SERVER_IP may be required but it is not set")
                 local_docker = docker.from_env()
                 local_connections["docker"] = {"client": local_docker, "containers": {}, "networks": {}}
                 if check:

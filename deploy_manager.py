@@ -3,6 +3,7 @@ from queue import Queue
 from threading import Thread
 
 # TODO: catch SIGINT/SIGKILL signals
+# TODO: create events for each stage
 
 class DeployManager:
 

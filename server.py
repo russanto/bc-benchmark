@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+import json
 import logging
 import os
 import queue
@@ -7,12 +8,15 @@ from threading import Thread
 import uuid
 
 from block_benchmark_handler import BlockBenchmarkHandler
+from caliper_manager import CaliperManager
 from geth_manager import GethManager
 from host_manager import HostManager
 
+logger = logging.getLogger("ControllerServer")
+
 logger_host = os.environ.get("LOGGER_HOST", "")
 if logger_host == "":
-    print("[WARNING] Logging block propagation won't work because no logging host has been set")
+    logger.warning("Logging block propagation won't work because no logging host has been set")
 
 if "LOG_LEVEL" in os.environ:
     if os.environ["LOG_LEVEL"] == "DEBUG":
@@ -73,7 +77,12 @@ def start_geth(nodes_count):
         genesis_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(genesis_file)
         deploy_id = uuid.uuid4()
-        geth_manager = GethManager(hosts, running_in_container=RUNNING_IN_CONTAINER)
+        geth_manager = GethManager(hosts)
+        geth_manager.parse_conf(os.environ)
+        with open(genesis_file) as genesis_file_data:
+            genesis_dict = json.load(genesis_file_data)
+            if "clique" in genesis_dict['config']:
+                geth_manager.set_consensus_protocol(GethManager.CLIQUE)
         geth_manager.init()
         geth_manager.cleanup()
         geth_manager.start(genesis_file)
@@ -93,6 +102,22 @@ def stop_geth(deploy_id):
         host_manager.free_hosts(geth_manager.hosts)
         return jsonify({"message": 'Nodes stopped and session closed'})
     return jsonify({"message": 'Deploy session not found'}), 404
+
+@app.route('/benchmark/start/caliper/<string:deploy_id>', methods=['GET', 'POST'])
+def start_caliper(deploy_id):
+    global bc_manager
+    uuidObj = uuid.UUID('urn:uuid:{0}'.format(deploy_id))
+    if uuidObj in bc_manager:
+        geth_manager = bc_manager[uuidObj]
+        caliper_manager = CaliperManager(geth_manager)
+        caliper_manager.parse_conf(os.environ)
+        caliper_manager.init()
+        caliper_manager.cleanup()
+        caliper_manager.start()
+        caliper_manager.deinit()
+        return jsonify({"message": "caliper configured and run"})
+    return jsonify({"message": 'Deploy session not found'}), 404
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
