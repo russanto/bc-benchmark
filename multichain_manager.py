@@ -27,10 +27,8 @@ class MultichainManager(DeployManager):
     bc_name = "benchmark"
 
     def __init__(self, hosts, bc_protocol="multichain"):
-        super().__init__()
+        super().__init__(hosts)
         self.logger = logging.getLogger("MultichainManager")
-        self.enable_cmd(self.CMD_INIT, self.CMD_START, self.CMD_CLEANUP)
-        self.hosts = hosts
         self.set_bc_protocol(bc_protocol)
     
     def set_bc_protocol(self, bc_protocol):
@@ -46,24 +44,38 @@ class MultichainManager(DeployManager):
     def _init(self):
         self.hosts_connections = HostManager.get_hosts_connections(self.hosts)
     
-    def _start(self):
+    def _start_setup(self):
         if len(self.hosts) < 1:
-            self.logger.warning("Host list is empty. It hasn't been created any node")
-        if self._deploy_seed(self.hosts[0]):
-            for host in self.hosts[1:]:
-                self._deploy_node(host, self.hosts[0])
+            self.logger.warning("Host list is empty. No nodes will be created.")
+            return
+        self.seed_host = self.hosts.pop()
+        self._deploy_seed(self.seed_host)
     
-    def _cleanup(self):
-        for host in self.hosts:
-            self.hosts_connections[host]["ssh"].sudo("rm -rf " + self.get_datadir())
-            docker_client = self.hosts_connections[host]["docker"]["client"]
-            try:
-                node = docker_client.containers.get(self.host_conf["container_name"])
-                node.stop()
-                node.remove(force=True)
-            except docker.errors.NotFound:
-                pass
-            self.logger.info("[%s]Successfully cleaned" % host)
+    def _start_loop(self, host):
+        self._deploy_node(host, self.seed_host)
+
+    def _stop_setup(self):
+        self.hosts.append(self.seed_host)
+        del self.seed_host
+    
+    def _stop_loop(self, host):
+        docker_client = self.hosts_connections[host]["docker"]["client"]
+        try:
+            node = docker_client.containers.get(self.host_conf["container_name"])
+            node.stop()
+        except docker.errors.NotFound:
+            pass
+        self.logger.info("[%s]Successfully stopped" % host)
+    
+    def _cleanup_loop(self, host):
+        docker_client = self.hosts_connections[host]["docker"]["client"]
+        try:
+            node = docker_client.containers.get(self.host_conf["container_name"])
+            node.remove(force=True)
+        except docker.errors.NotFound:
+            pass
+        self.hosts_connections[host]["ssh"].sudo("rm -rf " + self.get_datadir())
+        self.logger.info("[%s]Successfully cleaned" % host)
         
     def _deploy_seed(self, host):
         docker_client = self.hosts_connections[host]["docker"]["client"]
@@ -146,7 +158,7 @@ class MultichainManager(DeployManager):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     from host_manager import HostManager
-    import sys
+    import sys, time
     hosts_file_path = sys.argv[1]
     host_manager = HostManager()
     host_manager.add_hosts_from_file(hosts_file_path)
@@ -155,4 +167,6 @@ if __name__ == "__main__":
     manager.init()
     manager.cleanup()
     manager.start()
+    time.sleep(60)
+    manager.stop()
     manager.deinit()
