@@ -96,7 +96,7 @@ class MultichainManager(DeployManager):
         connection.put(os.path.join(self.conf_dir, 'multichain.conf'), remote=datadir)
         self.logger.debug("[%s][SEED]Uploaded multichain.conf" % host)
         self.hosts_connections[host]["docker"]["containers"] = docker_client.containers.run(
-            "192.168.20.150:3000/multichain-cnt",
+            self.dinr.resolve("multichain-node"),
             "multichaind %s -logtimemillis -shrinkdebugfile=0" % self.bc_name,
             detach=True,
             volumes={
@@ -138,7 +138,7 @@ class MultichainManager(DeployManager):
         connection.put(os.path.join(self.conf_dir, 'multichain.conf'), remote=datadir)
         self.logger.debug("[%s]Uploaded multichain.conf" % host)
         self.hosts_connections[host]["docker"]["containers"] = docker_client.containers.run(
-            "192.168.20.150:3000/multichain-cnt",
+            self.dinr.resolve("multichain-node"),
             "multichaind {0}@{1}:{2}".format(self.bc_name, seed, self.host_conf["node_network_port"]),
             detach=True,
             volumes={

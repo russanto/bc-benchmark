@@ -2,6 +2,8 @@ import logging
 from queue import Queue
 from threading import Thread
 
+from docker_images_name_resolver import DockerImagesNameResolver
+
 # TODO: catch SIGINT/SIGKILL signals
 # TODO: create events for each stage
 
@@ -25,6 +27,7 @@ class DeployManager:
         self.cmd_queue = Queue()
         self.enable_cmd(self.CMD_INIT)
         self.logger = logging.getLogger("DeployManager")
+        self.dinr = DockerImagesNameResolver()
 
     def enable_cmd(self, *commands):
         for cmd in commands:

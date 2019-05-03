@@ -25,7 +25,7 @@ class CaliperManager(DeployManager):
     tmp_dir = "tmp"
 
     def __init__(self, bc_manager):
-        super().__init__()
+        super().__init__(bc_manager.hosts)
         self.logger = logging.getLogger("CaliperManager")
         self.bc_manager = bc_manager
         self.hosts_addresses = bc_manager.get_etherbases() #TODO Manage the wait time and an eventual timeout
@@ -70,7 +70,7 @@ class CaliperManager(DeployManager):
             try:
                 self.logger.info("Deploying Zookeeper server")
                 self.local_connections["docker"]["containers"]["zookeeper"] = local_docker.containers.run(
-                    "zookeeper:3.4.11",
+                    self.dinr.resolve("zookeeper"),
                     detach=True,
                     name="zookeeper",
                     network=self.bc_manager.local_conf["network_name"],
@@ -128,7 +128,7 @@ class CaliperManager(DeployManager):
                 connections["ssh"].run("mkdir -p %s" % self.remote_caliper_dir)
                 connections["ssh"].put(tmp_file_name, remote=remote_file_path)
                 connections["docker"]["containers"][self.client_container_name] = connections["docker"]["client"].containers.run(
-                    "russanto/bc-orch-caliper-client",
+                    self.dinr.resolve("caliper-client"),
                     name=self.client_container_name,
                     detach=True,
                     network=self.bc_manager.host_conf["network_name"],
@@ -162,7 +162,7 @@ class CaliperManager(DeployManager):
         self.logger.info("Starting caliper")
         local_docker = self.local_connections["docker"]["client"]
         self.local_connections["docker"]["containers"][self.server_container_name] = local_docker.containers.run(
-            "russanto/bc-orch-caliper-server",
+            self.dinr.resolve("caliper-server"),
             name=self.server_container_name,
             detach=True,
             network=self.bc_manager.local_conf["network_name"],
@@ -250,5 +250,7 @@ if __name__ == "__main__":
     caliper_manager.cleanup()
     caliper_manager.start()
     time.sleep(300)
+    caliper_manager.stop()
+    caliper_manager.deinit()
     manager.stop()
     manager.deinit()
