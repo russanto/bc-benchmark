@@ -48,14 +48,16 @@ class MultichainManager(DeployManager):
         if len(self.hosts) < 1:
             self.logger.warning("Host list is empty. No nodes will be created.")
             return
-        self.seed_host = self.hosts.pop()
+        self.seed_host = self.hosts[0]
         self._deploy_seed(self.seed_host)
     
     def _start_loop(self, host):
-        self._deploy_node(host, self.seed_host)
+        if host == self.seed_host:
+            self.logger.debug("[%s]Skipping node deploy on seed host" % host)
+        else:
+            self._deploy_node(host, self.seed_host)
 
     def _stop_setup(self):
-        self.hosts.append(self.seed_host)
         del self.seed_host
     
     def _stop_loop(self, host):
