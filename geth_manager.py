@@ -144,7 +144,7 @@ class GethManager:
                 self._deinit()
             cmd = self.cmd_queue.get()
 
-    def _init(self):
+    def _init(self): # TODO check that required files and paths exists, otherwise abort subsequent commands
         self._create_local_dir()
         self._init_host_connections()
         local_docker = docker.from_env()

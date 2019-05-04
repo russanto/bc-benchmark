@@ -1,212 +1,174 @@
-from fabric import Connection
-from http.client import HTTPConnection
-import ipaddress
-import requests
-import sys, time
+import docker
+import logging
+import os
 
-class MultichainManager:
+from deploy_manager import DeployManager
+from host_manager import HostManager
 
-    nodes_ips = []
-    nodes_ssh_connections = []
+class MultichainManager(DeployManager):
 
-    default_conf_file = "./conf/manager.conf"
+    BITCOIN = "bitcoin"
+    MULTICHAIN = "multichain"
 
-    ssh_username = "root"
+    NODE_TYPE_SEED = "SEED"
+    NODE_TYPE_PEER = "PEER"
 
-    bc_datadir = '/root/.multichain/'
-    bc_name = 'benchmark' # Before being to change you have to change it also in params.dat
+    conf_dir = "./multichain"
 
-    compose_dir = '/root/docker-compose/'
+    host_conf = {
+        "datadir": "/home/ubuntu/multichain",
+        "network_name": "benchmark",
+        "container_name": "multichain-node",
+        "ssh_username": "ubuntu",
+        "node_network_port": 7411,
+        "node_rpc_port": 7410
+    }
 
-    manager_tmp_directory = "./tmp/"
-    manager_conf_directory = "./conf/"
+    bc_name = "benchmark"
 
-    log_collector_host = "192.168.20.1"
-    log_directory = "./logs/"
-
-    def __init__(self, hosts, conf_file=""):
-        self._parse_conf(conf_file)
-        self.nodes_ips = hosts
-
-    def connect(self):
-        for ip in self.nodes_ips:
-            self.nodes_ssh_connections.append(Connection(
-                    host=str(ip),
-                    user=self.ssh_username,
-                    inline_ssh_env=True
-            ))
-
-    def create(self):
-        self._log("Creating seed", str(self.nodes_ips[0]))
-        self._create_seed(self.nodes_ssh_connections[0], "SEED")
-        for node_index in range(1, len(self.nodes_ips)):
-            self._log("Creating node", str(self.nodes_ips[node_index]))
-            self._create_node(self.nodes_ssh_connections[node_index], "NODE" + str(node_index))
-
-    def fullfil(self, sleep=0):
-        for ip in self.nodes_ips:
-            sys.stdout.write("-----> Starting tx generation on %s:" % str(ip))
-            sys.stdout.flush()
-            response = requests.get("http://" + str(ip) + "/fullfil")
-            print("%d" % response.status_code)
-            time.sleep(sleep)
+    def __init__(self, hosts, bc_protocol="multichain"):
+        super().__init__(hosts)
+        self.logger = logging.getLogger("MultichainManager")
+        self.set_bc_protocol(bc_protocol)
     
-    def get_logs(self, label=""):
-        for ip in self.nodes_ips:
-            connection = HTTPConnection(str(ip), 8080)
-            connection.request('GET', '/')
-            response = connection.getresponse()
-
-            if response.status == 200:
-                with open(self.log_directory + label + '-' + ip + '.log', 'w') as outputlog:
-                    outputlog.write(response.read().decode('utf-8'))
-                    print('OK')
-                    continue
-                print('Error writing file')
-            else:
-                print('Error - HTTP Status: -> %d' % response.status)
-    
-    def start(self):
-        self._start_seed(self.nodes_ssh_connections[0], "SEED")
-        for index in range(1, len(self.nodes_ssh_connections)):
-            self._start_node(self.nodes_ssh_connections[index], "NODE" + str(index))
-
-    def stop(self):
-        self._stop_seed(self.nodes_ssh_connections[0])
-        self.nodes_ssh_connections[0].close()
-        for i in range(1, len(self.nodes_ssh_connections)):
-            self._stop_node(self.nodes_ssh_connections[i])
-            self.nodes_ssh_connections[i].close()
-    
-    def clean(self):
-        for cnx in self.nodes_ssh_connections:
-            self._clean(cnx)
-
-    def _parse_conf(self, conf_file=""):
-        filename = self.default_conf_file
-        if conf_file != "":
-            filename = conf_file
-        for line in open(filename):
-            stripped = line.strip()
-            conf_data = stripped.split('=')
-            if conf_data[0] == "username":
-                self.ssh_username = conf_data[1]
-            elif conf_data[0] == "datadir":
-                self.bc_datadir = conf_data[1]
-            elif conf_data[0] == "composedir":
-                self.compose_dir = conf_data[1]
-            elif conf_data[0] == "collector":
-                self.log_collector_host = conf_data[1]
-            elif conf_data[0] == "logsdir":
-                self.log_directory = conf_data[1]
-        return
-
-        
-    def _create_seed(self, connection, node_index):
-        datadir = self._get_datadir()
-        make_datadir = connection.run('mkdir -p ' + datadir)
-        if not make_datadir.ok:
-            print("Error creating datadir %s" % datadir)
-            return
-        self._log("Created datadir directory", connection.original_host)
-        make_composedir = connection.run('mkdir -p ' + self.compose_dir)
-        if not make_composedir.ok:
-            print("Error creating compose dir %s" % self.compose_dir)
-            return
-        self._log("Created compose directory", connection.original_host)
-        connection.put(self.manager_conf_directory + 'params.dat', remote=datadir)
-        self._log("Uploaded params.dat", connection.original_host)
-        connection.put(self.manager_conf_directory + 'multichain.conf', remote=datadir)
-        self._log("Uploaded multichain.conf", connection.original_host)
-        connection.put('docker-compose/multichain-seed.yml', remote=self.compose_dir)
-        self._log("Uploaded multichain-seed.yml", connection.original_host)
-        connection.put('bash-scripts/start-multichain-seed.sh', remote=self.compose_dir)
-        self._log("Uploaded start-multichain-seed.sh", connection.original_host)
-        seed_creation = connection.run(self.compose_dir + "start-multichain-seed.sh "
-            + self.bc_name + " "
-            + datadir + " "
-            + str(node_index) + " "
-            + self.log_collector_host + " "
-            + "80" )
-        print(seed_creation.stdout)
-        change_permission_to_params = connection.run("sudo chmod 755 " + datadir + '/params.dat')
-        print(change_permission_to_params.stdout)
-        connection.get(datadir + '/params.dat', self.manager_tmp_directory + "compiled-params.dat")
-
-    def _create_node(self, connection, node_index):
-        datadir = self._get_datadir()
-        make_datadir = connection.run('mkdir -p ' + datadir)
-        if not make_datadir.ok:
-            print("Error creating datadir %s" % datadir)
-            return
-        self._log("Created datadir directory", connection.original_host)
-        make_composedir = connection.run('mkdir -p ' + self.compose_dir)
-        if not make_composedir.ok:
-            print("Error creating compose dir %s" % self.compose_dir)
-            return
-        self._log("Created compose directory", connection.original_host)
-        connection.put(self.manager_tmp_directory + 'compiled-params.dat', remote=datadir + "/params.dat")
-        self._log("Uploaded params.dat", connection.original_host)
-        connection.put(self.manager_conf_directory + 'multichain.conf', remote=datadir)
-        self._log("Uploaded multichain.conf", connection.original_host)
-        connection.put('docker-compose/multichain-node.yml', remote=self.compose_dir)
-        self._log("Uploaded multichain-node.yml", connection.original_host)
-        connection.put('bash-scripts/start-multichain-node.sh', remote=self.compose_dir)
-        self._log("Uploaded start-multichain-node.sh", connection.original_host)
-        node_creation = connection.run(self.compose_dir + "start-multichain-node.sh "
-            + self.bc_name + " "
-            + self._get_datadir() + " "
-            + str(self.nodes_ips[0]) + " "
-            + "7411 "
-            + str(node_index) + " "
-            + self.log_collector_host + " "
-            + "80" )
-        print(node_creation.stdout)
-    
-    def _start_seed(self, connection, node_index):
-        seed_creation = connection.run(self.compose_dir + "start-multichain-seed.sh "
-            + self.bc_name + " "
-            + self._get_datadir() + " "
-            + str(node_index) + " "
-            + self.log_collector_host + " "
-            + "80" )
-        print(seed_creation.stdout)
-
-    def _start_node(self, connection, node_index):
-        node_creation = connection.run(self.compose_dir + "start-multichain-node.sh "
-            + self.bc_name + " "
-            + self._get_datadir() + " "
-            + str(self.nodes_ips[0]) + " "
-            + "7411 "
-            + str(node_index) + " "
-            + self.log_collector_host + " "
-            + "80" )
-        print(node_creation.stdout)
-
-    def _stop_seed(self, cnx):
-        node_stop = cnx.run("docker-compose -p " + self.bc_name + " -f " + self.compose_dir + "multichain-seed.yml down")
-        print(node_stop.stdout)
-    
-    def _stop_node(self, cnx):
-        node_stop = cnx.run("docker-compose -p " + self.bc_name + " -f " + self.compose_dir + "multichain-node.yml down")
-        print(node_stop.stdout)
-
-    def _clean(self, cnx):
-        clean_datadir = cnx.run("sudo rm -rf " + self.bc_datadir + self.bc_name)
-        if clean_datadir.ok:
-            self._log("Datadir successfully cleaned", cnx.original_host)
+    def set_bc_protocol(self, bc_protocol):
+        if bc_protocol == self.BITCOIN or bc_protocol == self.MULTICHAIN:
+            self.bc_protocol = bc_protocol
         else:
-            self._log("Error cleaning datadir", cnx.original_host)
+            self.logger.warning("{0} blockchain protocol is not supported. Switching to default {1}".format(bc_protocol, self.MULTICHAIN))
+            self.bc_protocol = self.MULTICHAIN
     
-    def _check_connections(self):
-        for cnx in self.nodes_ssh_connections:
-            if not cnx.is_connected():
-                cnx.open()
-    
-    def _get_datadir(self):
-        return self.bc_datadir + self.bc_name
+    def get_datadir(self):
+        return os.path.join(self.host_conf["datadir"], self.bc_name)
 
-    def _log(self, entry, host):
-        print("[MANAGER][%s] %s" % (host, entry))
+    def _init(self):
+        self.hosts_connections = HostManager.get_hosts_connections(self.hosts)
     
+    def _start_setup(self):
+        if len(self.hosts) < 1:
+            self.logger.warning("Host list is empty. No nodes will be created.")
+            return
+        self.seed_host = self.hosts[0]
+        self._deploy_seed(self.seed_host)
+    
+    def _start_loop(self, host):
+        if host == self.seed_host:
+            self.logger.debug("[%s]Skipping node deploy on seed host" % host)
+        else:
+            self._deploy_node(host, self.seed_host)
 
+    def _stop_setup(self):
+        del self.seed_host
+    
+    def _stop_loop(self, host):
+        docker_client = self.hosts_connections[host]["docker"]["client"]
+        try:
+            node = docker_client.containers.get(self.host_conf["container_name"])
+            node.stop()
+        except docker.errors.NotFound:
+            pass
+        self.logger.info("[%s]Successfully stopped" % host)
+    
+    def _cleanup_loop(self, host):
+        docker_client = self.hosts_connections[host]["docker"]["client"]
+        try:
+            node = docker_client.containers.get(self.host_conf["container_name"])
+            node.remove(force=True)
+        except docker.errors.NotFound:
+            pass
+        self.hosts_connections[host]["ssh"].sudo("rm -rf " + self.get_datadir())
+        self.logger.info("[%s]Successfully cleaned" % host)
+        
+    def _deploy_seed(self, host):
+        docker_client = self.hosts_connections[host]["docker"]["client"]
+        try:
+            docker_client.ping()
+        except docker.errors.APIError:
+            self.logger.error("[%s]Can't contact docker engine. Seed deploy aborted." % host)
+            return False
+        connection = self.hosts_connections[host]["ssh"]
+        datadir = self.get_datadir()
+        make_datadir = connection.run('mkdir -p ' + datadir)
+        if not make_datadir.ok:
+            self.logger.error("[%s]Error creating datadir. Seed deploy aborted." % host)
+            return False
+        self.logger.debug("[%s][SEED]Created datadir directory" % host)
+        connection.put(os.path.join(self.conf_dir, 'params.dat'), remote=datadir)
+        self.logger.debug("[%s][SEED]Uploaded params.dat" % host)
+        connection.put(os.path.join(self.conf_dir, 'multichain.conf'), remote=datadir)
+        self.logger.debug("[%s][SEED]Uploaded multichain.conf" % host)
+        self.hosts_connections[host]["docker"]["containers"] = docker_client.containers.run(
+            self.dinr.resolve("multichain-node"),
+            "multichaind %s -logtimemillis -shrinkdebugfile=0" % self.bc_name,
+            detach=True,
+            volumes={
+                self.host_conf["datadir"]: {
+                    "bind": "/root/.multichain",
+                    "mode": "rw"
+                }
+            }, ports={
+                "{0}/tcp".format(self.host_conf["node_network_port"]): self.host_conf["node_network_port"],
+                "{0}/tcp".format(self.host_conf["node_rpc_port"]): self.host_conf["node_rpc_port"]
+            }, environment={
+                "CHAIN_NAME": self.bc_name
+            }, name=self.host_conf["container_name"])
+        self.logger.info("[%s]Seed successfully deployed" % host)
+        connection.get(datadir + '/params.dat', os.path.join(self.conf_dir, "compiled-params.dat"))
+        self.compiled_params = os.path.join(self.conf_dir, "compiled-params.dat")
+        self.logger.info("[%s]Fetched compiled params.dat" % host)
+        return True
+    
+    def _deploy_node(self, host, seed):
+        if self.bc_protocol == self.BITCOIN and not hasattr(self, "compiled_params"):
+            self.logger.error("[%s]Compiled params not available. Deploy aborted." % host)
+        docker_client = self.hosts_connections[host]["docker"]["client"]
+        try:
+            docker_client.ping()
+        except docker.errors.APIError:
+            self.logger.error("[%s]Can't contact docker engine. Seed deploy aborted." % host)
+            return False
+        connection = self.hosts_connections[host]["ssh"]
+        datadir = self.get_datadir()
+        make_datadir = connection.run('mkdir -p ' + datadir)
+        if not make_datadir.ok:
+            self.logger.error("[%s]Error creating datadir. Seed deploy aborted." % host)
+            return False
+        self.logger.debug("[%s]Created datadir directory" % host)
+        if self.bc_protocol == self.BITCOIN:
+            connection.put(self.compiled_params, remote=os.path.join(datadir, "params.dat"))
+            self.logger.debug("[%s]Uploaded params.dat" % host)
+        connection.put(os.path.join(self.conf_dir, 'multichain.conf'), remote=datadir)
+        self.logger.debug("[%s]Uploaded multichain.conf" % host)
+        self.hosts_connections[host]["docker"]["containers"] = docker_client.containers.run(
+            self.dinr.resolve("multichain-node"),
+            "multichaind {0}@{1}:{2}".format(self.bc_name, seed, self.host_conf["node_network_port"]),
+            detach=True,
+            volumes={
+                self.host_conf["datadir"]: {
+                    "bind": "/root/.multichain",
+                    "mode": "rw"
+                }
+            }, ports={
+                "{0}/tcp".format(self.host_conf["node_network_port"]): self.host_conf["node_network_port"],
+                "{0}/tcp".format(self.host_conf["node_rpc_port"]): self.host_conf["node_rpc_port"]
+            }, environment={
+                "CHAIN_NAME": self.bc_name
+            }, name=self.host_conf["container_name"])
+        self.logger.info("[%s]Node successfully deployed" % host)
+        return True
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    from host_manager import HostManager
+    import sys, time
+    hosts_file_path = sys.argv[1]
+    host_manager = HostManager()
+    host_manager.add_hosts_from_file(hosts_file_path)
+    hosts = host_manager.get_hosts()
+    manager = MultichainManager(hosts)
+    manager.init()
+    manager.cleanup()
+    manager.start()
+    time.sleep(60)
+    manager.stop()
+    manager.deinit()

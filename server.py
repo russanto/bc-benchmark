@@ -11,6 +11,7 @@ from block_benchmark_handler import BlockBenchmarkHandler
 from caliper_manager import CaliperManager
 from geth_manager import GethManager
 from host_manager import HostManager
+from multichain_manager import MultichainManager
 
 logger = logging.getLogger("ControllerServer")
 
@@ -51,17 +52,42 @@ def notify_ready(ip_ready):
     host_manager.add_host(ip_ready)
     return jsonify('understood')
 
-@app.route('/start/multichain/<int:nodes_count>', methods=['GET', 'POST'])
-def start(nodes_count):
+@app.route('/start/multichain/<int:nodes_count>/<string:protocol>', methods=['POST'])
+def start_multichain(nodes_count, protocol):
+    global bc_manager
+    if protocol != MultichainManager.BITCOIN and protocol != MultichainManager.MULTICHAIN:
+        return jsonify({"message": 'Only bitcoin and multichain protocol are supported'}), 403
+    if 'params' not in request.files:
+        return jsonify({"message": 'Params file is required in order to start a multichain network'}), 403
+    file = request.files['params']
+    if file.filename == '':
+        return jsonify({"message": 'Empty params file found'}), 403
     hosts = host_manager.reserve_hosts(nodes_count)
     if hosts:
+        params_file_path = "./multichain/params.dat"
+        file.save(params_file_path)
         deploy_id = uuid.uuid4()
-        bp_manager = BlockBenchmarkHandler(hosts[0:nodes_count], logger_host)
-        bp_manager.start()
-        bc_manager[deploy_id] = bp_manager
-        return jsonify({"message": "Starting benchmark", "deploy_id": deploy_id})
+        multichain_manager = MultichainManager(hosts)
+        multichain_manager.set_bc_protocol(protocol)
+        multichain_manager.init()
+        multichain_manager.cleanup()
+        multichain_manager.start()
+        bc_manager[deploy_id] = multichain_manager
+        return jsonify({"message": "Starting network", "deploy_id": deploy_id})
     else:
         return jsonify({"message": 'Not enough nodes ready or available'}), 412
+
+@app.route('/stop/multichain/<string:deploy_id>', methods=['GET', 'POST'])
+def stop_multichain(deploy_id):
+    global bc_manager
+    uuidObj = uuid.UUID('urn:uuid:{0}'.format(deploy_id))
+    if uuidObj in bc_manager:
+        multichain_manager = bc_manager[uuidObj]
+        multichain_manager.stop()
+        multichain_manager.deinit()
+        host_manager.free_hosts(multichain_manager.hosts)
+        return jsonify({"message": 'Nodes stopped and session closed'})
+    return jsonify({"message": 'Deploy session not found'}), 404
         
 
 @app.route('/start/geth/<int:nodes_count>', methods=['POST'])

@@ -12,7 +12,7 @@
 
 # Basic chain parameters
 
-chain-protocol = bitcoin                # Chain protocol: multichain (permissions, native assets) or bitcoin
+chain-protocol = multichain                # Chain protocol: multichain (permissions, native assets) or bitcoin
 chain-description = benchmark           # Chain description, embedded in genesis block coinbase, max 90 chars.
 root-stream-name = root                 # Root stream name, blank means no root stream.
 root-stream-open = true                 # Allow anyone to publish in root stream
