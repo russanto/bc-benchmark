@@ -7,7 +7,6 @@ import sys
 from threading import Thread
 import uuid
 
-from block_benchmark_handler import BlockBenchmarkHandler
 from caliper_manager import CaliperManager
 from geth_manager import GethManager
 from host_manager import HostManager
