@@ -133,10 +133,10 @@ class CaliperManager(DeployManager):
                     environment={
                         "ZOO_SERVER": self.local_connections["ip"],
                         "BLOCKCHAIN": "ethereum",
-                        "BC_CONF": "ethereum"
+                        "BC_CONF": "1node"
                     }, volumes={
                         remote_file_path: {
-                            "bind":"/caliper/packages/caliper-application/network/ethereum/ethereum.json",
+                            "bind":"/caliper/packages/caliper-application/network/ethereum/1node/ethereum.json",
                             "mode":"rw"
                         }
                     })
@@ -169,7 +169,7 @@ class CaliperManager(DeployManager):
             network=self.bc_manager.local_conf["network_name"],
             environment={
                 "BLOCKCHAIN": "ethereum",
-                "BC_CONF": "ethereum",
+                "BC_CONF": "1node",
                 "BENCHMARK": "simple"
             }, volumes={
                 os.path.join(self.local_datadir, "config-ethereum.yaml"): { # This must point to local host datadir
@@ -177,11 +177,11 @@ class CaliperManager(DeployManager):
                     "mode": "rw"
                 },
                 os.path.join(self.local_datadir, "ethereum.json"): { # This must point to local host datadir
-                    "bind": "/caliper/packages/caliper-application/network/ethereum/ethereum.json",
+                    "bind": "/caliper/packages/caliper-application/network/ethereum/1node/ethereum.json",
                     "mode": "rw"
                 },
                 self.reports_dir: {
-                    "bind": "/caliper/reports",
+                    "bind": "/caliper/packages/caliper-application/reports",
                     "mode": "rw"
                 }
             })
@@ -234,7 +234,7 @@ class CaliperManager(DeployManager):
             raise
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     from host_manager import HostManager
     from geth_manager import GethManager
     import sys, time
@@ -254,7 +254,7 @@ if __name__ == "__main__":
     caliper_manager.init()
     caliper_manager.cleanup()
     caliper_manager.start()
-    time.sleep(100)
+    time.sleep(120)
     caliper_manager.stop()
     caliper_manager.deinit()
     manager.stop()
