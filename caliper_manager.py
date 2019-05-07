@@ -12,8 +12,6 @@ import yaml
 from deploy_manager import DeployManager
 from host_manager import HostManager
 
-#TODO: Implement stop command
-
 class CaliperManager(DeployManager):
 
     remote_caliper_dir = "/home/ubuntu/caliper"
@@ -91,15 +89,15 @@ class CaliperManager(DeployManager):
         self.is_initialized = True
 
     def _start(self):
-        with open(self.get_datadir("geth.json")) as geth_json_file:
+        with open(self.get_datadir("ethereum.json")) as geth_json_file:
             geth_conf = json.load(geth_json_file)
-        geth_conf["geth"]["url"] = "http://geth-node:8545"
-        geth_conf["geth"]["registryAddress"] = self.registry_address
-        geth_conf["geth"]["contractDeployerAddress"] = self.bc_manager.utility_account
-        geth_conf["geth"]["fromAddressPassword"] = ""
-        with open(self.get_datadir("geth.json"), "w") as geth_json_file:
+        geth_conf["ethereum"]["url"] = "http://%s:8545" % self.bc_manager.host_conf["node_name"]
+        geth_conf["ethereum"]["registry"]["address"] = self.registry_address
+        geth_conf["ethereum"]["contractDeployerAddress"] = self.bc_manager.utility_account
+        geth_conf["ethereum"]["fromAddressPassword"] = ""
+        with open(self.get_datadir("ethereum.json"), "w") as geth_json_file:
             json.dump(geth_conf, geth_json_file)
-        remote_file_path = os.path.join(self.remote_caliper_dir, "geth.json")
+        remote_file_path = os.path.join(self.remote_caliper_dir, "ethereum.json")
         host_queue = queue.Queue()
         for host in self.hosts_connections.keys():
             host_queue.put(host)
@@ -120,8 +118,8 @@ class CaliperManager(DeployManager):
         while host != "":
             connections = self.hosts_connections[host]
             geth_conf = geth_conf.copy()
-            geth_conf["geth"]["fromAddress"] = self.hosts_addresses[host]
-            tmp_file_name = os.path.join(self.tmp_dir, "geth-tmp-{0}.json".format(host))
+            geth_conf["ethereum"]["fromAddress"] = self.hosts_addresses[host]
+            tmp_file_name = os.path.join(self.tmp_dir, "ethereum-tmp-{0}.json".format(host))
             with open(tmp_file_name, "w") as tmp_file:
                 json.dump(geth_conf, tmp_file)
             try:
@@ -132,10 +130,13 @@ class CaliperManager(DeployManager):
                     name=self.client_container_name,
                     detach=True,
                     network=self.bc_manager.host_conf["network_name"],
-                    environment={"ZOO_SERVER": self.local_connections["ip"]},
-                    volumes={
+                    environment={
+                        "ZOO_SERVER": self.local_connections["ip"],
+                        "BLOCKCHAIN": "ethereum",
+                        "BC_CONF": "ethereum"
+                    }, volumes={
                         remote_file_path: {
-                            "bind":"/caliper/network/geth/geth.json",
+                            "bind":"/caliper/packages/caliper-application/network/ethereum/ethereum.json",
                             "mode":"rw"
                         }
                     })
@@ -152,10 +153,10 @@ class CaliperManager(DeployManager):
         docker_rapi_hosts = []
         for host in self.hosts_addresses.keys():
             docker_rapi_hosts.append("http://%s:2375/geth-node" % host)
-        with open(self.get_datadir("config-geth.yaml")) as config_file:
+        with open(self.get_datadir("config-ethereum.yaml")) as config_file:
             config_data = yaml.load(config_file)
         config_data["monitor"]["docker"]["name"] = docker_rapi_hosts
-        with open(self.get_datadir("config-geth.yaml"), "w") as config_file:
+        with open(self.get_datadir("config-ethereum.yaml"), "w") as config_file:
             yaml.dump(config_data, config_file, default_flow_style=False)
         self.logger.info("Updated workload configuration")
 
@@ -166,13 +167,17 @@ class CaliperManager(DeployManager):
             name=self.server_container_name,
             detach=True,
             network=self.bc_manager.local_conf["network_name"],
-            volumes={
-                os.path.join(self.local_datadir, "config-geth.yaml"): { # This must point to local host datadir
-                    "bind": "/caliper/benchmark/simple/config-geth.yaml",
+            environment={
+                "BLOCKCHAIN": "ethereum",
+                "BC_CONF": "ethereum",
+                "BENCHMARK": "simple"
+            }, volumes={
+                os.path.join(self.local_datadir, "config-ethereum.yaml"): { # This must point to local host datadir
+                    "bind": "/caliper/packages/caliper-application/benchmark/simple/config-ethereum.yaml",
                     "mode": "rw"
                 },
-                os.path.join(self.local_datadir, "geth.json"): { # This must point to local host datadir
-                    "bind": "/caliper/network/geth/geth.json",
+                os.path.join(self.local_datadir, "ethereum.json"): { # This must point to local host datadir
+                    "bind": "/caliper/packages/caliper-application/network/ethereum/ethereum.json",
                     "mode": "rw"
                 },
                 self.reports_dir: {
@@ -229,7 +234,7 @@ class CaliperManager(DeployManager):
             raise
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     from host_manager import HostManager
     from geth_manager import GethManager
     import sys, time
@@ -249,7 +254,7 @@ if __name__ == "__main__":
     caliper_manager.init()
     caliper_manager.cleanup()
     caliper_manager.start()
-    time.sleep(300)
+    time.sleep(100)
     caliper_manager.stop()
     caliper_manager.deinit()
     manager.stop()
