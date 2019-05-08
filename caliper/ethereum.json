@@ -1,0 +1,22 @@
+{
+    "caliper": {
+        "blockchain": "ethereum"
+    }, 
+    "ethereum": {
+        "url": "http://geth-node:8545",
+        "contractDeployerAddress": "0x502ba8FEd483C68399de4eFA8Bb7Fd1FF4FE832E",
+        "contractDeployerAddressPassword": "",
+        "fromAddress": "0x88e0D406d781806bbbF7e88776f1a5374B7d3C3C",
+        "fromAddressPassword": "",
+        "transactionConfirmationBlocks": 2,
+        "registry": {
+            "address": "0x38FbbD47f8a1BDDDBF44FA94854ab3851A2AbCd7",
+            "path": "src/contract/ethereum/registry/registry.json"
+        },
+        "contracts": {
+            "simple": {
+                "path": "src/contract/ethereum/simple/simple.json"
+            }
+        }
+    }
+}

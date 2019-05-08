@@ -10,6 +10,7 @@ import time
 from web3 import Web3, HTTPProvider, WebsocketProvider
 import web3.admin
 
+from docker_images_name_resolver import DockerImagesNameResolver
 from host_manager import HostManager
 
 # TODO: Implement wait function for bc to be ready
@@ -48,6 +49,7 @@ class GethManager:
     def __init__(self, hosts, running_in_container=True): #TODO Use symbolic names for dns resolution in custom docker network
         self.hosts = hosts
         self.running_in_container = running_in_container
+        self.dinr = DockerImagesNameResolver()
         self.is_initialized = False
         self.logger = logging.getLogger("GethManager")
         self.deployed_keys = {}
@@ -178,14 +180,14 @@ class GethManager:
         self._clean_local_dir(".ethereum/geth")
         if genesis_file_path != "":
             shutil.copyfile(genesis_file_path, self.get_local_datadir("genesis.json"))
-            local_docker.containers.run("ethereum/client-go:stable", "init /root/genesis.json", volumes={
+            local_docker.containers.run(self.dinr.resolve("geth-node"), "init /root/genesis.json", volumes={
                 self.local_conf["datadir"]: { # This points always to the controller host datadir
                     "bind": "/root",
                     "mode": "rw"
                 }
             })
         local_geth_node = local_docker.containers.run(
-            "ethereum/client-go:stable",
+            self.dinr.resolve("geth-node"),
             "--rpc --rpcapi admin,eth,miner,personal,web3 --rpcaddr 0.0.0.0 --rpcvhosts=* --rpccorsdomain \"http://remix.ethereum.org\" --nodiscover", detach=True, volumes={
                 self.local_conf["datadir"]: { # This points always to the controller host datadir
                     'bind': '/root',
@@ -234,6 +236,7 @@ class GethManager:
             if i == n_nodes:
                 self.utility_account = newAccount
                 self.utility_account_password = self.host_conf["account_password"]
+                self.logger.info("Local utility account: %s" % newAccount)
             else:
                 self.miner_accounts.append(newAccount)
             time.sleep(0.05) # To ensure that keyfile names are ordered according to creation time
@@ -349,12 +352,10 @@ class GethManager:
             self.host_connections[host]["web3"] = Web3(HTTPProvider("http://%s:8545" % host))
             version = self.check_web3_cnx(self.host_connections[host]["web3"])
             if version:
-                self.logger.debug("[{0}]Geth node up".format(host))
+                self.deployed_keys[host] = etherbase
+                self.logger.info("[{0}]Deployed Geth node with etherbase {1}".format(host, etherbase))
             else:
                 self.logger.error("[{0}]Error deploying node".format(host))
-            
-            self.deployed_keys[host] = etherbase
-            self.logger.info("[{0}]Deployed Geth node with etherbase {1}".format(host, etherbase))
             host_data = host_queue.get()
         
     def _copy_password(self, host, password, password_file_name="password"):
@@ -443,9 +444,10 @@ class GethManager:
         while a < attempts:
             try:
                 return web3.version.node
-            except: #TODO should see if it is worth to continue basing on which exception is raised
+            except Exception as e: #TODO should see if it is worth to continue basing on which exception is raised
                 a += 1
                 time.sleep(delay_between_attempts)
+                logging.getLogger("GethManager").debug(e)
         return False
             
 

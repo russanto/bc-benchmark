@@ -1,3 +1,2 @@
 orchestration/*
-logs/*
-log-analyzer/*
+block-propagation/*
