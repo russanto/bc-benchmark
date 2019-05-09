@@ -113,9 +113,10 @@ class MultichainManager(DeployManager):
                 "CHAIN_NAME": self.bc_name
             }, name=self.host_conf["container_name"])
         self.logger.info("[%s]Seed successfully deployed" % host)
-        connection.get(datadir + '/params.dat', os.path.join(self.conf_dir, "compiled-params.dat"))
-        self.compiled_params = os.path.join(self.conf_dir, "compiled-params.dat")
-        self.logger.info("[%s]Fetched compiled params.dat" % host)
+        if self.bc_protocol == self.BITCOIN:
+            connection.get(datadir + '/params.dat', os.path.join(self.conf_dir, "compiled-params.dat"))
+            self.compiled_params = os.path.join(self.conf_dir, "compiled-params.dat")
+            self.logger.info("[%s]Fetched compiled params.dat" % host)
         return True
     
     def _deploy_node(self, host, seed):
