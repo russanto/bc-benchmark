@@ -143,7 +143,12 @@ class DeployManager:
             host = host_queue.get()
 
     def __exec_stage_method(self, cmd, stage, args):
-        try:
-            getattr(self, "_{0}_{1}".format(cmd, stage))(**args)
-        except AttributeError: # If you don't really need it, you can suppress this warning implementing the method with pass as body.
-            self.logger.warning("{1} stage for {0} command is not defined.".format(cmd, stage))
+        stage_method = getattr(self, "_{0}_{1}".format(cmd, stage), self.__exec_stage_not_present)
+        if stage_method == self.__exec_stage_not_present:
+            stage_method(cmd, stage)
+        else:
+            stage_method(**args)
+    
+    def __exec_stage_not_present(self, cmd, stage):
+        # If you don't really need it, you can suppress this warning implementing the method with pass as body.
+        self.logger.warning("{1} stage for {0} command is not defined.".format(cmd, stage))
