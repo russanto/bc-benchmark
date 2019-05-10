@@ -40,6 +40,7 @@ class ParityManager(DeployManager):
         self.enodes.append(self.__start_local_node())
         self.utility_account = self.local_connections["web3"].personal.newAccount(self.account_password)
         self.__stop_local_node()
+        self.logger.info("Generated utility account")
     
     def _init_loop(self, host):
         self.check_docker_network(self.hosts_connections[host]["docker"])
@@ -47,6 +48,7 @@ class ParityManager(DeployManager):
         self.enodes.append(self.__start_remote_node(host))
         self.accounts.append(self.hosts_connections[host]["web3"].personal.newAccount(self.account_password))
         self.__stop_remote_node(host)
+        self.logger.info("[%s]Generated account" % host)
 
     def _start_setup(self):
         self.__init_genesis(self.FILE_GENESIS)
