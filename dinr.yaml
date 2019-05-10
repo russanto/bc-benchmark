@@ -6,6 +6,9 @@ images:
     registry: "ethereum"
     image: "client-go:stable"
   multichain-node: "bc-orch-multichain:2.0.1"
+  parity-node:
+    registry: "parity"
+    image: "parity:stable"
   zookeeper: 
     registry: "library"
     image: "zookeeper:3.4.11"

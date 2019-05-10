@@ -8,7 +8,6 @@ import shutil
 from threading import Event, Thread
 import time
 from web3 import Web3, HTTPProvider, WebsocketProvider
-import web3.admin
 
 from docker_images_name_resolver import DockerImagesNameResolver
 from host_manager import HostManager
