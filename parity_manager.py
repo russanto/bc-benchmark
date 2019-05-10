@@ -48,7 +48,7 @@ class ParityManager(DeployManager):
         self.accounts.append(self.hosts_connections[host]["web3"].personal.newAccount(self.account_password))
         self.__stop_remote_node(host)
 
-    def _start_init(self):
+    def _start_setup(self):
         self.__init_genesis(self.FILE_GENESIS)
         self.__write_enodes_file(self.FILE_ENODES)
         self.__start_local_node(with_peers=True)
@@ -56,7 +56,7 @@ class ParityManager(DeployManager):
     def _start_loop(self, host):
         self.__start_remote_node(host, with_peers=True)
 
-    def _stop_init(self):
+    def _stop_setup(self):
         self.__stop_local_node()
 
     def _stop_loop(self, host):
@@ -176,7 +176,7 @@ class ParityManager(DeployManager):
             docker_connection["networks"][self.network_name] = local_network
         except docker.errors.APIError as error:
             if error.status_code == 409:
-                self.logger.info("[LOCAL]Network already deployed")
+                self.logger.info("[%s]Network already deployed" % docker_connection["client"].api.base_url)
             else:
                 self.logger.error(error)
 
