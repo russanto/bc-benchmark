@@ -72,7 +72,7 @@ class ParityManager(DeployManager):
         if with_peers:
             shutil.copy(self.FILE_ENODES, self.datadir)
             start_cmd += " --reserved-peers=%s --reserved-only" % os.path.join(self.datadir, os.path.basename(self.FILE_ENODES))
-        parity_container = self.local_connections["docker"]["client"].run(
+        parity_container = self.local_connections["docker"]["client"].containers.run(
             self.dinr.resolve("parity-node"),
             start_cmd,
             detach=True,
@@ -111,7 +111,7 @@ class ParityManager(DeployManager):
             ssh_cnx.put(self.FILE_ENODES, remote=self.datadir)
             start_cmd += " --reserved-peers=%s --reserved-only" % os.path.join(self.datadir, os.path.basename(self.FILE_ENODES))
         docker_cnx = self.hosts_connections[host]["docker"]
-        parity_container = docker_cnx["client"].run(
+        parity_container = docker_cnx["client"].containers.run(
             self.dinr.resolve("parity-node"),
             start_cmd,
             detach=True,
