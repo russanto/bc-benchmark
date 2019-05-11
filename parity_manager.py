@@ -4,6 +4,7 @@ import os
 import requests
 import shutil
 import time
+import toml
 
 import docker
 from web3 import Web3, HTTPProvider
@@ -14,6 +15,7 @@ from host_manager import HostManager
 class ParityManager(DeployManager):
 
     datadir = "/home/ubuntu/parity"
+    container_datadir = "/home/parity"
     network_name = "benchmark"
     node_name = "parity-node"
     account_password = "password"
@@ -23,93 +25,56 @@ class ParityManager(DeployManager):
     FILE_PASSWORD = "./parity/password.txt"
     FILE_ENODES = "./parity/enodes.txt"
 
+    temp_dir = "./tmp"
 
     def __init__(self, hosts):
         super().__init__(hosts)
         self.logger = logging.getLogger("ParityManager")
 
     def _init_setup(self):
-        self.local_connections = HostManager.get_local_connections()
         self.hosts_connections = HostManager.get_hosts_connections(self.hosts)
-        self.accounts = []
+        self.hosts_accounts = {}
         self.enodes = []
-        self.create_local_datadir()
+        with open(self.FILE_CONFIG) as conf_file:
+            self.node_config_template = toml.loads(conf_file.read())
         with open(self.FILE_PASSWORD, "w") as pw_file:
             pw_file.write(self.account_password)
-        self.check_docker_network(self.local_connections["docker"])
-        self.enodes.append(self.__start_local_node())
-        self.utility_account = self.local_connections["web3"].personal.newAccount(self.account_password)
-        self.__stop_local_node()
-        self.logger.info("Generated utility account")
     
     def _init_loop(self, host):
-        self.check_docker_network(self.hosts_connections[host]["docker"])
+        self.check_docker(host)
         self.create_remote_datadir(host)
+        self.__upload_config(host)
+        self.__upload_genesis(host)
         self.enodes.append(self.__start_remote_node(host))
-        self.accounts.append(self.hosts_connections[host]["web3"].personal.newAccount(self.account_password))
+        account = self.hosts_connections[host]["web3"].personal.newAccount(self.account_password)
+        self.__write_host_config(host, account)
+        self.hosts_accounts[host] = account
         self.__stop_remote_node(host)
-        self.logger.info("[%s]Generated account" % host)
+        self.logger.info("[%s]Generated account %s" % (host, account))
 
     def _start_setup(self):
         self.__init_genesis(self.FILE_GENESIS)
         self.__write_enodes_file(self.FILE_ENODES)
-        self.__start_local_node(with_peers=True)
     
     def _start_loop(self, host):
-        self.__start_remote_node(host, with_peers=True)
-
-    def _stop_setup(self):
-        self.__stop_local_node()
+        self.__upload_config(host, mining=True)
+        self.__upload_password(host)
+        self.__upload_enodes(host)
+        self.__upload_genesis(host)
+        try:
+            self.__start_remote_node(host, mining=True, with_peers=True)
+        except Exception as e:
+            self.logger.error(e)
 
     def _stop_loop(self, host):
         self.__stop_remote_node(host)
 
-    def __start_local_node(self, with_peers=False):
-        start_cmd = "--chain genesis.json --config config.toml --geth --identity ParityUtility"
-        shutil.copy(self.FILE_CONFIG, self.datadir)
-        shutil.copy(self.FILE_GENESIS, self.datadir)
-        shutil.copy(self.FILE_PASSWORD, self.datadir)
-        if with_peers:
-            shutil.copy(self.FILE_ENODES, self.datadir)
-            start_cmd += " --reserved-peers=%s --reserved-only" % os.path.join(self.datadir, os.path.basename(self.FILE_ENODES))
-        parity_container = self.local_connections["docker"]["client"].containers.run(
-            self.dinr.resolve("parity-node"),
-            start_cmd,
-            detach=True,
-            volumes={
-                self.datadir: {
-                    "bind": "/home/parity",
-                    "mode": "rw"
-                }
-            },
-            ports={
-                "8545/tcp":"8545",
-                "30303/tcp":"30303",
-                "30303/udp":"30303"
-            }, name=self.node_name, network=self.network_name)
-        self.local_connections["docker"]["containers"][self.node_name] = parity_container
-        self.local_connections["web3"] = Web3(HTTPProvider("http://%s:8545" % self.node_name))
-        if self.check_web3(self.local_connections["web3"]):
-            self.logger.info("Initialized utility node")
-        else:
-            raise Exception("Can't contact local Geth node. Please abort the deploy.")
-        return self.get_enode()
-    
-    def __stop_local_node(self):
-        if self.node_name in self.local_connections["docker"]["containers"]:
-            self.local_connections["docker"]["containers"][self.node_name].stop()
-            self.local_connections["docker"]["containers"][self.node_name].remove()
-            self.logger.info("Stopped utility node")
-
-    def __start_remote_node(self, host, with_peers=False):
+    def __start_remote_node(self, host, mining=False, with_peers=False):
         start_cmd = "--chain genesis.json --config config.toml --geth --identity Parity-%s" % host
-        ssh_cnx = self.hosts_connections[host]["ssh"]
-        ssh_cnx.put(self.FILE_CONFIG, remote=self.datadir)
-        ssh_cnx.put(self.FILE_GENESIS, remote=self.datadir)
-        ssh_cnx.put(self.FILE_PASSWORD, remote=self.datadir)
+        if mining:
+            start_cmd += " --unlock {0} --password {1}".format(self.hosts_accounts[host], os.path.join(self.container_datadir, "password.txt"))
         if with_peers:
-            ssh_cnx.put(self.FILE_ENODES, remote=self.datadir)
-            start_cmd += " --reserved-peers=%s --reserved-only" % os.path.join(self.datadir, os.path.basename(self.FILE_ENODES))
+            start_cmd += " --reserved-peers=%s --reserved-only" % os.path.join(self.container_datadir, os.path.basename(self.FILE_ENODES))
         docker_cnx = self.hosts_connections[host]["docker"]
         parity_container = docker_cnx["client"].containers.run(
             self.dinr.resolve("parity-node"),
@@ -117,7 +82,7 @@ class ParityManager(DeployManager):
             detach=True,
             volumes={
                 self.datadir: {
-                    "bind": "/home/parity",
+                    "bind": self.container_datadir,
                     "mode": "rw"
                 }
             },
@@ -128,11 +93,12 @@ class ParityManager(DeployManager):
             }, name=self.node_name, network=self.network_name)
         docker_cnx["containers"][self.node_name] = parity_container
         self.hosts_connections[host]["web3"] = Web3(HTTPProvider("http://%s:8545" % host))
-        if self.check_web3(self.hosts_connections[host]["web3"]):
+        enode = self.wait_node(host)
+        if enode:
             self.logger.info("[%s]Initialized node" % host)
         else:
             raise Exception("[%s]Can't contact Parity node" % host)
-        return self.get_enode(host)
+        return enode
 
     def __stop_remote_node(self, host):
         containers = self.hosts_connections[host]["docker"]["containers"]
@@ -143,14 +109,44 @@ class ParityManager(DeployManager):
     def __init_genesis(self, genesis_path):
         with open(genesis_path) as base_genesis:
             genesis_dict = json.load(base_genesis)
-        accounts_balances = {self.utility_account: {"balance": "0x200000000000000000000000000000000000000000000000000000000000000"}}
-        for account in self.accounts:
-            {account: {"balance": "0x200000000000000000000000000000000000000000000000000000000000000"}}
-        genesis_dict["engine"]["authorityRound"]["params"]["validators"]["list"] = self.accounts
+        accounts_balances = {}
+        for account in self.hosts_accounts.values():
+            accounts_balances[account] = {"balance": "0x200000000000000000000000000000000000000000000000000000000000000"}
+        genesis_dict["engine"]["authorityRound"]["params"]["validators"]["list"] = list(self.hosts_accounts.values())
         genesis_dict["accounts"] = accounts_balances
         with open(genesis_path, "w") as genesis_file:
             json.dump(genesis_dict, genesis_file)
         return genesis_dict
+
+    def __write_host_config(self, host, account):
+        node_config = self.node_config_template.copy()
+        node_config["mining"]["author"] = account
+        node_config["mining"]["engine_signer"] = account
+        with open(os.path.join(self.temp_dir, "%s.toml" % host), "w") as conf_file:
+            conf_file.write(toml.dumps(node_config))
+
+    def __upload_password(self, host):
+        self.hosts_connections[host]["ssh"].put(self.FILE_PASSWORD, remote=os.path.join(self.datadir, "password.txt"))
+        self.logger.info("[%s]Password file uploaded" % host)
+
+    def __upload_genesis(self, host):
+        self.hosts_connections[host]["ssh"].put(self.FILE_GENESIS, remote=os.path.join(self.datadir, "genesis.json"))
+        self.logger.info("[%s]Genesis file uploaded" % host)
+
+    def __upload_config(self, host, mining=False):
+        if mining:
+            conf_file_path = os.path.join(self.temp_dir, "%s.toml" % host)
+        else:
+            conf_file_path = self.FILE_CONFIG
+        if os.path.isfile(conf_file_path):
+            self.hosts_connections[host]["ssh"].put(conf_file_path, remote=os.path.join(self.datadir, "config.toml"))
+            self.logger.info("[%s]Config file uploaded" % host)
+        else:
+            self.logger.warning("[%s]Couldn't update conf file. (Mining: %d)" % (host, mining))
+
+    def __upload_enodes(self, host):
+        self.hosts_connections[host]["ssh"].put(self.FILE_ENODES, remote=os.path.join(self.datadir, "enodes.txt"))
+        self.logger.info("[%s]Enodes file uploaded" % host)
 
     def __write_enodes_file(self, file_path):
         with open(file_path, "w") as enodes_file:
@@ -158,45 +154,44 @@ class ParityManager(DeployManager):
                 enodes_file.write("%s\n" % enode)
         self.logger.info("Written enodes file")
 
-    def get_enode(self, host=None):
-        if host:
-            web3 = self.hosts_connections[host]["web3"]
-        else:
-            web3 = self.local_connections["web3"]
-            host = self.local_connections["ip"]
-        requested_enode = web3.parity.enode()
-        at_index = requested_enode.find("@")
-        port_index = requested_enode.find(":30303")
-        return requested_enode[0:at_index+1] + host + requested_enode[port_index:]
-
-    def check_docker_network(self, docker_connection):
+    def check_docker(self, host):
+        docker_connection = self.hosts_connections[host]["docker"]
         try:
-            local_network = docker_connection["client"].networks.create(
+            benchmark_network = docker_connection["client"].networks.create(
                 self.network_name,
                 driver="bridge",
                 check_duplicate=True)
-            docker_connection["networks"][self.network_name] = local_network
+            docker_connection["networks"][self.network_name] = benchmark_network
         except docker.errors.APIError as error:
             if error.status_code == 409:
-                self.logger.info("[%s]Network already deployed" % docker_connection["client"].api.base_url)
+                self.logger.info("[%s]Network already deployed" % host)
             else:
                 self.logger.error(error)
-
-    def create_local_datadir(self):
-        if not os.path.exists(self.datadir):
-            os.makedirs(self.datadir)
+        try:
+            parity_node = docker_connection["client"].containers.get(self.node_name)
+            parity_node.stop()
+            parity_node.remove()
+            self.logger.info("[{0}]Parity node found, stopped and removed".format(host))
+        except docker.errors.APIError as error:
+            if error.status_code == 404:
+                pass
+            else:
+                self.logger.error(error)
     
     def create_remote_datadir(self, host):
         mkdir = self.hosts_connections[host]["ssh"].run("mkdir -p %s" % self.datadir)
         if not mkdir.ok:
             raise Exception("[%s]Can't create datadir" % host)
     
-    @staticmethod
-    def check_web3(web3, attempts=10, delay_between_attempts=1):
+    def wait_node(self, host, attempts=10, delay_between_attempts=1):
+        web3 = self.hosts_connections[host]["web3"]
         a = 0
         while a < attempts:
             try:
-                return web3.version.node
+                requested_enode = web3.parity.enode()
+                at_index = requested_enode.find("@")
+                port_index = requested_enode.find(":30303")
+                return requested_enode[0:at_index+1] + host + requested_enode[port_index:]
             except Exception as e: #TODO should see if it is worth to continue basing on which exception is raised
                 a += 1
                 time.sleep(delay_between_attempts)
@@ -213,7 +208,7 @@ if __name__ == "__main__":
     hosts = host_manager.get_hosts()
     manager = ParityManager(hosts)
     manager.init()
-    manager.cleanup()
+    # manager.cleanup()
     manager.start()
     time.sleep(120)
     manager.stop()

@@ -37,9 +37,9 @@ disable = true
 
 [mining]
 # Account address to receive reward when block is mined.
-author = "0xca5a83fd5b7a5229901d323816d09a8392af7120"
+# author = ""
 # Account to sign consensus messages and issue blocks for non-PoW chains.
-engine_signer = "0xca5a83fd5b7a5229901d323816d09a8392af7120"
+# engine_signer = ""
 # Prepare a block to seal even when there are no miners connected.
 force_sealing = true
 # You will be paid $0.000001 for a basic transaction - Minimum gas price will be set accordingly.
