@@ -31,6 +31,8 @@ class CaliperEthereum(CaliperManagerAdapter):
         self.logger = logging.getLogger("CaliperEthereum")
 
     def init(self):
+        if not os.path.exists(self.temp_dir):
+            os.makedirs(self.temp_dir)
         self.manager.cmd_events[DeployManager.CMD_START].wait()
         self.__deploy_registry(self.manager.utility_node)
         with open(self.FILE_CONF_TEMPLATE) as conf_template_file:
