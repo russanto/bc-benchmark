@@ -128,7 +128,7 @@ class CaliperManager(DeployManager):
                 "BC_CONF": "benchmark",
                 "BENCHMARK": "simple"
             }, volumes={
-                HostManager.resolve_local_path(self.workload_file): { # This must point to local host datadir
+                HostManager.resolve_local_path(os.path.abspath(self.workload_file)): { # This must point to local host datadir
                     "bind": "/caliper/packages/caliper-application/benchmark/simple/config-benchmark.yaml",
                     "mode": "rw"
                 },
@@ -187,13 +187,14 @@ if __name__ == "__main__":
     manager.init()
     manager.cleanup()
     manager.start()
-    time.sleep(60)
+    manager.cmd_events[manager.CMD_START].wait()
     manager_adapter = CaliperEthereum(manager)
-    caliper_manager = CaliperManager(manager_adapter, "/Users/antonio/Documents/Universita/INSA/bc-benchmark/caliper/config-ethereum.yaml")
+    caliper_manager = CaliperManager(manager_adapter, "./caliper/config-ethereum.yaml")
     caliper_manager.parse_conf(os.environ)
     caliper_manager.init()
     caliper_manager.cleanup()
     caliper_manager.start()
+    caliper_manager.cmd_events[manager.CMD_START].wait()
     time.sleep(120)
     caliper_manager.stop()
     caliper_manager.deinit()
