@@ -108,7 +108,7 @@ class ParityManager(DeployManager):
         if node.ready():
             self.logger.info("[%s]Initialized node" % node.host)
         else:
-            raise Exception("[%s]Can't contact Parity node" % node.host)
+            raise Exception("[%s]Can't contact Parity node with account %s" % (node.host, node.account[0]))
 
     def __stop_remote_node(self, node):
         containers = self.hosts_connections[node.host]["docker"]["containers"]

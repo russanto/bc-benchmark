@@ -1,6 +1,7 @@
 import logging
 from queue import Queue
 from threading import Event, Thread
+import time
 
 from docker_images_name_resolver import DockerImagesNameResolver
 
@@ -139,7 +140,7 @@ class DeployManager:
             deployer.start()
             deployers.append(deployer)
             host_queue.put(self.DEPLOYER_STOP_SIMBOL) # The stop signal for the _start_node_thread
-            # time.sleep(1) # TODO: this should be configurable
+            time.sleep(1) # TODO: this should be configurable
         for deployer in deployers:
             deployer.join()
         self.__exec_stage_method(cmd, "teardown", args)

@@ -89,11 +89,12 @@ class GethManager(DeployManager):
             else:
                 self.logger.error(error)
         self.__start_local_node()
+        self.accounts = []
     
     def _init_loop(self, host):
         node = EthereumNode(host, EthereumNode.TYPE_GETH)
-        node.account = self.local_node.web3.personal.newAccount(self.account_password)
         self.nodes[host] = node
+        self.accounts.append(self.local_node.web3.personal.newAccount(self.account_password))
 
     def _init_teardown(self):
         self.__init_genesis()
@@ -126,7 +127,7 @@ class GethManager(DeployManager):
         })
         self.logger.debug("[{0}]DB initiated".format(host))
         start_args = "--nodiscover --etherbase {0} --unlock {0} --password {1}".format(etherbase, "/root/.ethereum/password.txt")
-        start_args += " --rpc --rpcaddr 0.0.0.0 --rpcvhosts=* --rpcapi admin,eth,miner,personal,web3 --rpccorsdomain \"http://remix.ethereum.org\""
+        start_args += " --rpc --rpcaddr 0.0.0.0 --rpcvhosts=* --rpcapi admin,eth,miner,personal,net,web3 --rpccorsdomain \"http://remix.ethereum.org\""
         start_args += " --mine --minerthreads 2 --gasprice 1"
         self.hosts_connections[host]["docker"]["containers"][self.docker_node_name] = docker_client.containers.run(
             "ethereum/client-go:stable",
@@ -143,13 +144,15 @@ class GethManager(DeployManager):
                 '30303/tcp': '30303',
                 '30303/udp': '30303',
             }, detach=True, network=self.docker_network_name)
+        self.nodes[host].account = Web3.toChecksumAddress("0x" + etherbase), self.account_password
         if self.nodes[host].ready():
-            self.logger.info("[{0}]Deployed Geth node with etherbase {1}".format(host, etherbase))
+            self.logger.info("[{0}]Deployed Geth node with etherbase {1}".format(host, self.nodes[host].account))
         else:
             self.logger.error("[{0}]Error deploying node".format(host))
         
     def _start_teardown(self):
         self.utility_node = self.nodes[self.hosts[0]]
+        self.logger.info("Using %s as utility node" % self.utility_node.host)
         self.__full_mesh()
     
     def _cleanup_loop(self, host):
@@ -189,14 +192,14 @@ class GethManager(DeployManager):
         with open(genesis_file_path) as genesis_file:
             genesis_dict = json.load(genesis_file)
         alloc_accounts = {}
-        for node in self.nodes.values():
-            alloc_accounts[node.account] = {}
-            alloc_accounts[node.account]["balance"] = "0x200000000000000000000000000000000000000000000000000000000000000"
+        balance_prototype = {"balance":"0x200000000000000000000000000000000000000000000000000000000000000"}
+        for account in self.accounts:
+            alloc_accounts[account] = balance_prototype.copy()
         genesis_dict["alloc"] = alloc_accounts
         if self.consensus_protocol == self.CLIQUE:
             extra_data = "0x0000000000000000000000000000000000000000000000000000000000000000"
-            for node in self.nodes.values():
-                extra_data += node.account[2:]
+            for account in self.accounts:
+                extra_data += account[2:]
             extra_data += "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
             genesis_dict["extraData"] = extra_data
         with open(genesis_file_path, "w") as genesis_file:
@@ -233,7 +236,7 @@ class GethManager(DeployManager):
         local_docker = self.local_connections["docker"]["client"]
         local_geth_node = local_docker.containers.run(
             self.dinr.resolve("geth-node"),
-            "--rpc --rpcapi admin,eth,miner,personal,web3 --rpcaddr 0.0.0.0 --rpcvhosts=* --nodiscover",
+            "--rpc --rpcapi admin,eth,miner,personal,net,web3 --rpcaddr 0.0.0.0 --rpcvhosts=* --nodiscover",
             detach=True,
             volumes={
                 HostManager.resolve_local_path(self.local_datadir): { # This points always to the controller host datadir
@@ -278,7 +281,6 @@ class GethManager(DeployManager):
         for node in self.nodes.values():
             for peer in self.nodes.values():
                 if node != peer:
-                    time.sleep(1)
                     node.web3.admin.addPeer(peer.enode)
                     self.logger.info("Added %s to %s" % (peer.enode, node.enode))
     
