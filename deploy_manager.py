@@ -1,6 +1,6 @@
 import logging
 from queue import Queue
-from threading import Thread
+from threading import Event, Thread
 
 from docker_images_name_resolver import DockerImagesNameResolver
 
@@ -28,6 +28,9 @@ class DeployManager:
         self.enable_cmd(self.CMD_INIT)
         self.logger = logging.getLogger("DeployManager")
         self.dinr = DockerImagesNameResolver()
+        self.cmd_events = {}
+        for cmd in self.AVAILABLE_CMDS:
+            self.cmd_events[cmd] = Event()
 
     def enable_cmd(self, *commands):
         for cmd in commands:
@@ -116,6 +119,12 @@ class DeployManager:
                 cmd_method(cmd["type"], cmd["args"])
             else:
                 cmd_method(**cmd["args"])
+            # Calling start will reset stop and viceversa
+            if cmd["type"] == self.CMD_START:
+                self.cmd_events[self.CMD_STOP].clear()
+            elif cmd["type"] == self.CMD_STOP:
+                self.cmd_events[self.CMD_START].clear()
+            self.cmd_events[cmd["type"]].set()
             cmd = self.cmd_queue.get()
         self.logger.debug("Manager closed")
 
@@ -138,8 +147,9 @@ class DeployManager:
     def __cmd_loop_thread(self, cmd, host_queue, args):
         host = host_queue.get()
         while host != self.DEPLOYER_STOP_SIMBOL:
-            args["host"] = host
-            self.__exec_stage_method(cmd, "loop", args)
+            loop_args = args.copy()
+            loop_args["host"] = host
+            self.__exec_stage_method(cmd, "loop", loop_args)
             host = host_queue.get()
 
     def __exec_stage_method(self, cmd, stage, args):

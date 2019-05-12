@@ -10,8 +10,8 @@ mode = "active"
 auto_update = "none"
 # Disables auto downloading of new releases. Not recommended.
 no_download = true
-# Blockchain and settings will be stored in ~/.parity.
-base_path = "./.parity"
+# Blockchain and settings will be stored in ~.
+base_path = "."
 # Don't save pending local transactions to disk to be restored whenever the node restarts.
 no_persistent_txqueue = true
 
