@@ -7,14 +7,14 @@ import sys
 import threading
 
 # TODO: Implement checks on received host
-# TODO: Manage the LOCAL_IP flag instead or with the sys.argv[1] variable
+# TODO: Fill container_volumes without hard-coding it
 
 class HostManager:
 
-        running_in_container = False
+        running_in_container = "RUNNING_IN_CONTAINER" in os.environ
 
         container_volumes = {
-                "hostpath": "containerpath"
+                "/home/ubuntu": "/root"
         }
 
         host_conf = {
@@ -99,10 +99,12 @@ class HostManager:
 
         @staticmethod
         def resolve_local_path(path):
+                path = os.path.abspath(path)
                 if not HostManager.running_in_container:
                         return path
                 else:
                         for host_path, container_path in HostManager.container_volumes.items():
                                 if container_path in path:
-                                        return os.path.join(host_path, path[len(container_path):])
+                                        return os.path.join(host_path, path[len(container_path)+1:])
                         logging.getLogger("HostManager").warning("Trying to resolve %s but no bindind as been found" % path)
+                        return path

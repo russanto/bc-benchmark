@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import queue
+import shutil
 import sys
 from threading import Thread
 import time
@@ -20,9 +21,10 @@ class CaliperManager(DeployManager):
     remote_network_conf_file = os.path.join(remote_caliper_dir, "benchmark.json")
     docker_container_server_name = "caliper"
     docker_container_client_name = "zookeeper-client"
-    docker_container_datadir = "/root/caliper"
     reports_dir = "/home/ubuntu/reports"
-    tmp_dir = "tmp"
+    
+    # If running in container, this must be externally reachable and its binding must be present in HostManager
+    local_datadir = "/root/caliper"
 
     def __init__(self, manager_adapter, workload_file):
         if not isinstance(manager_adapter, CaliperManagerAdapter):
@@ -30,13 +32,16 @@ class CaliperManager(DeployManager):
         super().__init__(manager_adapter.hosts)
         self.logger = logging.getLogger("CaliperManager")
         self.manager_adapter = manager_adapter
-        self.workload_file = workload_file
+        self.original_workload_file = workload_file
     
     def parse_conf(self, conf_as_dict): # TODO integrate this function inside kwargs on __init__
         if "REPORTS_DIR" in conf_as_dict:
             self.reports_dir = conf_as_dict["REPORTS_DIR"]
 
     def _init(self):
+        self.__clean_local_dir()
+        shutil.copy(self.original_workload_file, self.local_datadir)
+        self.workload_file = os.path.join(self.local_datadir, os.path.basename(self.original_workload_file))
         self.hosts_connections = HostManager.get_hosts_connections(self.hosts)
         self.local_connections = HostManager.get_local_connections()
         if "docker" in self.local_connections:
@@ -120,6 +125,10 @@ class CaliperManager(DeployManager):
             yaml.dump(config_data, config_file, default_flow_style=False)
         self.logger.info("Updated workload configuration")
 
+        network_file = self.manager_adapter.get_network_conf_file()
+        shutil.copy(network_file, self.local_datadir)
+        network_file = os.path.join(self.local_datadir, os.path.basename(network_file))
+
         self.logger.info("Starting caliper")
         local_docker = self.local_connections["docker"]["client"]
         self.local_connections["docker"]["containers"][self.docker_container_server_name] = local_docker.containers.run(
@@ -132,11 +141,11 @@ class CaliperManager(DeployManager):
                 "BC_CONF": "benchmark",
                 "BENCHMARK": "simple"
             }, volumes={
-                HostManager.resolve_local_path(os.path.abspath(self.workload_file)): { # This must point to local host datadir
+                HostManager.resolve_local_path(self.workload_file): { # This must point to local host datadir
                     "bind": "/caliper/packages/caliper-application/benchmark/simple/config-benchmark.yaml",
                     "mode": "rw"
                 },
-                HostManager.resolve_local_path(self.manager_adapter.get_network_conf_file()): { # This must point to local host datadir
+                HostManager.resolve_local_path(network_file): { # This must point to local host datadir
                     "bind": "/caliper/packages/caliper-application/network/benchmark/benchmark/benchmark.json",
                     "mode": "rw"
                 },
@@ -173,6 +182,16 @@ class CaliperManager(DeployManager):
     
     def _cleanup_teardown(self):
         self.logger.info("Cleanup completed")
+
+    def __clean_local_dir(self):
+        try:
+            shutil.rmtree(self.local_datadir)
+            os.makedirs(self.local_datadir)
+            self.logger.info("Local datadir (%s) successfully cleaned" % self.local_datadir)
+        except FileNotFoundError:
+            self.logger.warning("Local datadir (%s) not cleaned because not found" % self.local_datadir)
+        except Exception as error:
+            self.logger.error(error)
                 
 
 if __name__ == "__main__":
