@@ -41,8 +41,6 @@ class ParityManager(DeployManager):
 
     def _init_setup(self):
         self.hosts_connections = HostManager.get_hosts_connections(self.hosts)
-        # self.hosts_accounts = {}
-        # self.enodes = []
         with open(self.FILE_CONFIG) as conf_file:
             self.node_config_template = toml.loads(conf_file.read())
         with open(self.FILE_PASSWORD, "w") as pw_file:

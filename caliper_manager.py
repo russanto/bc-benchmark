@@ -12,6 +12,7 @@ import yaml
 from caliper_manager_adapter import CaliperManagerAdapter
 from deploy_manager import DeployManager
 from host_manager import HostManager
+from parity_manager import ParityManager
 
 class CaliperManager(DeployManager):
 
@@ -178,12 +179,20 @@ if __name__ == "__main__":
     from geth_manager import GethManager
     import sys, time
     hosts_file_path = sys.argv[1]
+    blockchain = sys.argv[2]
     host_manager = HostManager()
     host_manager.add_hosts_from_file(hosts_file_path)
     hosts = host_manager.get_hosts()
-    manager = GethManager(hosts)
-    manager.parse_conf(os.environ)
-    manager.set_consensus_protocol(GethManager.CLIQUE)
+    
+    if blockchain == "geth":
+        manager = GethManager(hosts)
+        manager.parse_conf(os.environ)
+        manager.set_consensus_protocol(GethManager.CLIQUE)
+    elif blockchain == "parity":
+        manager = ParityManager(hosts)
+    else:
+        raise Exception("Only parity and geth blockchain are supported. Given %s" % blockchain)
+
     manager.init()
     manager.cleanup()
     manager.start()
@@ -195,7 +204,7 @@ if __name__ == "__main__":
     caliper_manager.cleanup()
     caliper_manager.start()
     caliper_manager.cmd_events[manager.CMD_START].wait()
-    time.sleep(120)
+    time.sleep(180)
     caliper_manager.stop()
     caliper_manager.deinit()
     manager.stop()

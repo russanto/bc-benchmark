@@ -178,6 +178,10 @@ class GethManager(DeployManager):
         self.logger.info("[%s]Stopped" % host)
     
     def _deinit_setup(self):
+        for container_name, container in self.local_connections["docker"]["containers"].items():
+            container.stop()
+            container.remove()
+            self.logger.info("[Localhost]Stopped %s" % container_name)
         self.local_connections["docker"]["client"].close()
 
     def _deinit_loop(self, host):
