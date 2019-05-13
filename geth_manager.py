@@ -286,26 +286,17 @@ class GethManager(DeployManager):
             for peer in self.nodes.values():
                 if node != peer:
                     node.web3.admin.addPeer(peer.enode)
-                    self.logger.info("Added %s to %s" % (peer.enode, node.enode))
-    
-    @staticmethod
-    def check_web3_cnx(web3, attempts=10, delay_between_attempts=1):
-        a = 0
-        while a < attempts:
-            try:
-                return web3.version.node
-            except Exception as e: #TODO should see if it is worth to continue basing on which exception is raised
-                a += 1
-                time.sleep(delay_between_attempts)
-                logging.getLogger("GethManager").debug(e)
-        return False
+                    self.logger.debug("Added %s to %s" % (peer.enode, node.enode))
+        self.logger.info("Nodes connected in a full mesh network")
             
-
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger("paramiko.transport").setLevel(logging.WARNING)
+
     from host_manager import HostManager
     import sys
+    
     hosts_file_path = sys.argv[1]
     host_manager = HostManager()
     host_manager.add_hosts_from_file(hosts_file_path)

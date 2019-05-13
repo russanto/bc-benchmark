@@ -197,8 +197,11 @@ class ParityManager(DeployManager):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger("paramiko.transport").setLevel(logging.WARNING)
+
     from host_manager import HostManager
     import sys, time
+    
     hosts_file_path = sys.argv[1]
     host_manager = HostManager()
     host_manager.add_hosts_from_file(hosts_file_path)

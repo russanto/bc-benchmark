@@ -200,10 +200,13 @@ class CaliperManager(DeployManager):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger("paramiko.transport").setLevel(logging.WARNING)
+
     from caliper_ethereum import CaliperEthereum
     from host_manager import HostManager
     from geth_manager import GethManager
     import sys, time
+    
     hosts_file_path = sys.argv[1]
     blockchain = sys.argv[2]
     host_manager = HostManager()
