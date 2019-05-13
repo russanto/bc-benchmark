@@ -1,6 +1,7 @@
 import logging
 from queue import Queue
-from threading import Thread
+from threading import Event, Thread
+import time
 
 from docker_images_name_resolver import DockerImagesNameResolver
 
@@ -28,6 +29,9 @@ class DeployManager:
         self.enable_cmd(self.CMD_INIT)
         self.logger = logging.getLogger("DeployManager")
         self.dinr = DockerImagesNameResolver()
+        self.cmd_events = {}
+        for cmd in self.AVAILABLE_CMDS:
+            self.cmd_events[cmd] = Event()
 
     def enable_cmd(self, *commands):
         for cmd in commands:
@@ -116,6 +120,12 @@ class DeployManager:
                 cmd_method(cmd["type"], cmd["args"])
             else:
                 cmd_method(**cmd["args"])
+            # Calling start will reset stop and viceversa
+            if cmd["type"] == self.CMD_START:
+                self.cmd_events[self.CMD_STOP].clear()
+            elif cmd["type"] == self.CMD_STOP:
+                self.cmd_events[self.CMD_START].clear()
+            self.cmd_events[cmd["type"]].set()
             cmd = self.cmd_queue.get()
         self.logger.debug("Manager closed")
 
@@ -130,7 +140,7 @@ class DeployManager:
             deployer.start()
             deployers.append(deployer)
             host_queue.put(self.DEPLOYER_STOP_SIMBOL) # The stop signal for the _start_node_thread
-            # time.sleep(1) # TODO: this should be configurable
+            time.sleep(1) # TODO: this should be configurable
         for deployer in deployers:
             deployer.join()
         self.__exec_stage_method(cmd, "teardown", args)
@@ -138,12 +148,18 @@ class DeployManager:
     def __cmd_loop_thread(self, cmd, host_queue, args):
         host = host_queue.get()
         while host != self.DEPLOYER_STOP_SIMBOL:
-            args["host"] = host
-            self.__exec_stage_method(cmd, "loop", args)
+            loop_args = args.copy()
+            loop_args["host"] = host
+            self.__exec_stage_method(cmd, "loop", loop_args)
             host = host_queue.get()
 
     def __exec_stage_method(self, cmd, stage, args):
-        try:
-            getattr(self, "_{0}_{1}".format(cmd, stage))(**args)
-        except AttributeError: # If you don't really need it, you can suppress this warning implementing the method with pass as body.
-            self.logger.warning("{1} stage for {0} command is not defined.".format(cmd, stage))
+        stage_method = getattr(self, "_{0}_{1}".format(cmd, stage), self.__exec_stage_not_present)
+        if stage_method == self.__exec_stage_not_present:
+            stage_method(cmd, stage)
+        else:
+            stage_method(**args)
+    
+    def __exec_stage_not_present(self, cmd, stage):
+        # If you don't really need it, you can suppress this warning implementing the method with pass as body.
+        self.logger.warning("{1} stage for {0} command is not defined.".format(cmd, stage))

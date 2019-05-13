@@ -3,4 +3,5 @@ fabric
 flask
 pyyaml
 requests
+toml
 web3

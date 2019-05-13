@@ -11,6 +11,12 @@ import threading
 
 class HostManager:
 
+        running_in_container = False
+
+        container_volumes = {
+                "hostpath": "containerpath"
+        }
+
         host_conf = {
                 "ssh_username": "ubuntu",
                 "docker_remote_api_port": 2375
@@ -90,3 +96,13 @@ class HostManager:
                                 del local_connections["docker"]
                                 print("Docker not available locally")
                 return local_connections
+
+        @staticmethod
+        def resolve_local_path(path):
+                if not HostManager.running_in_container:
+                        return path
+                else:
+                        for host_path, container_path in HostManager.container_volumes.items():
+                                if container_path in path:
+                                        return os.path.join(host_path, path[len(container_path):])
+                        logging.getLogger("HostManager").warning("Trying to resolve %s but no bindind as been found" % path)
