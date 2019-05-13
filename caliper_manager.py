@@ -38,7 +38,7 @@ class CaliperManager(DeployManager):
         if "REPORTS_DIR" in conf_as_dict:
             self.reports_dir = conf_as_dict["REPORTS_DIR"]
 
-    def _init(self):
+    def _init_setup(self):
         self.__clean_local_dir()
         shutil.copy(self.original_workload_file, self.local_datadir)
         self.workload_file = os.path.join(self.local_datadir, os.path.basename(self.original_workload_file))
@@ -78,13 +78,17 @@ class CaliperManager(DeployManager):
         else:
             self.logger.error("Can't initialize: error with local docker client")
             return False
+    
+    def _init_loop(self, host):
+        mkdir = self.hosts_connections[host]["ssh"].run("mkdir -p %s" % self.remote_caliper_dir)
+        return mkdir.ok
 
     def _start_loop(self, host):
         network_conf_file = self.manager_adapter.get_network_conf_file(host)
-        docker = self.hosts_connections[host]["docker"]
+        docker_cnx = self.hosts_connections[host]["docker"]
         try:
             self.hosts_connections[host]["ssh"].put(network_conf_file, remote=self.remote_network_conf_file)
-            docker["containers"][self.docker_container_client_name] = docker["client"].containers.run(
+            docker_cnx["containers"][self.docker_container_client_name] = docker_cnx["client"].containers.run(
                 self.dinr.resolve("caliper-client"),
                 name=self.docker_container_client_name,
                 detach=True,
