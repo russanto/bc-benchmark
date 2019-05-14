@@ -7,4 +7,5 @@ RUN mkdir /controller
 WORKDIR /controller
 COPY . /controller/
 RUN pip install -r requirements.txt
+ENV RUNNING_IN_CONTAINER=1
 ENTRYPOINT [ "python", "caliper_manager.py", "hosts" ]

@@ -18,7 +18,7 @@ class ParityManager(DeployManager):
 
     # Host dir to be binded at container datadir
     datadir = "/home/ubuntu/parity"
-    # Docker container working directory
+    # Docker container working directory. If the parity image doesn't change, this shouldn't be changed.
     docker_container_datadir = "/home/parity"
     # Docker network that node will join on the host. If it does not exist it will be created. 
     docker_network_name = "benchmark"
@@ -27,12 +27,12 @@ class ParityManager(DeployManager):
     # Password to encrypt new accounts
     account_password = "password"
 
+    local_datadir = "/root/parity"
+
     FILE_CONFIG = "./parity/config.toml"
     FILE_GENESIS = "./parity/genesis.json"
-    FILE_PASSWORD = "./parity/password.txt"
+    FILE_PASSWORD = os.path.join(local_datadir, "password.txt")
     FILE_ENODES = "./parity/enodes.txt"
-
-    temp_dir = "./tmp"
 
     def __init__(self, hosts):
         super().__init__(hosts)
@@ -41,6 +41,7 @@ class ParityManager(DeployManager):
 
     def _init_setup(self):
         self.hosts_connections = HostManager.get_hosts_connections(self.hosts)
+        self.__init_local_dir()
         with open(self.FILE_CONFIG) as conf_file:
             self.node_config_template = toml.loads(conf_file.read())
         with open(self.FILE_PASSWORD, "w") as pw_file:
@@ -80,6 +81,16 @@ class ParityManager(DeployManager):
     def _stop_loop(self, host):
         self.__stop_remote_node(self.nodes[host])
 
+    def __init_local_dir(self):
+        try:
+            shutil.rmtree(self.local_datadir)
+            os.makedirs(self.local_datadir)
+            self.logger.info("Local datadir (%s) successfully cleaned" % self.local_datadir)
+        except FileNotFoundError:
+            self.logger.info("Creating local datadir (%s)" % self.local_datadir)
+        except Exception as error:
+            self.logger.error(error)
+
     def __start_remote_node(self, node, mining=False, with_peers=False):
         start_cmd = "--chain genesis.json --config config.toml --geth --identity Parity-%s" % node.host
         if mining:
@@ -114,6 +125,7 @@ class ParityManager(DeployManager):
             containers[self.docker_node_name].stop()
             node.status = EthereumNode.STATUS_STOPPED
             containers[self.docker_node_name].remove()
+            self.logger.info("[%s]Node stopped" % node.host)
     
     def __init_genesis(self, genesis_path):
         with open(genesis_path) as base_genesis:
@@ -133,7 +145,7 @@ class ParityManager(DeployManager):
         node_config = self.node_config_template.copy()
         node_config["mining"]["author"] = account
         node_config["mining"]["engine_signer"] = account
-        with open(os.path.join(self.temp_dir, "%s.toml" % host), "w") as conf_file:
+        with open(os.path.join(self.local_datadir, "%s.toml" % host), "w") as conf_file:
             conf_file.write(toml.dumps(node_config))
 
     def __upload_password(self, host):
@@ -146,7 +158,7 @@ class ParityManager(DeployManager):
 
     def __upload_config(self, host, mining=False):
         if mining:
-            conf_file_path = os.path.join(self.temp_dir, "%s.toml" % host)
+            conf_file_path = os.path.join(self.local_datadir, "%s.toml" % host)
         else:
             conf_file_path = self.FILE_CONFIG
         if os.path.isfile(conf_file_path):

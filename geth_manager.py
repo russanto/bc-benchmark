@@ -20,15 +20,15 @@ class GethManager(DeployManager):
     ETHASH = "ethash"
     CLIQUE = "clique"
 
+    local_datadir = "/root/geth"
+    remote_datadir = "/home/ubuntu/ethereum"
+
     docker_node_name = "geth-node"
     docker_network_name = "benchmark"
 
     FILE_CLIQUE = "./geth/clique.json"
     FILE_ETHASH = "./geth/genesis.json"
-    FILE_PASSWORD = "./geth/password.txt"
-
-    local_datadir = "/root/geth"
-    remote_datadir = "/home/ubuntu/ethereum"
+    FILE_PASSWORD = os.path.join(local_datadir, "password.txt")
 
     @property
     def local_keystore(self):
@@ -62,9 +62,10 @@ class GethManager(DeployManager):
     def _init_setup(self): # TODO check that required files and paths exists, otherwise abort subsequent commands
         self.hosts_connections = HostManager.get_hosts_connections(self.hosts)
         self.local_connections = HostManager.get_local_connections()
-        with open(self.FILE_PASSWORD, "w") as pw_file:
-            pw_file.write(self.account_password)
+        self.__init_local_dir()
+        self.__create_password_file()
         local_docker = self.local_connections["docker"]["client"]
+        # Removes previous executions geth nodes
         try:
             local_geth_node = local_docker.containers.get(self.docker_node_name)
             local_geth_node.stop()
@@ -74,7 +75,7 @@ class GethManager(DeployManager):
             self.logger.info("Geth local node not found, a new one will be created")
         except:
             raise
-        self.__clean_local_dir()
+        # Ensure that the docker network exists
         try:
             local_network = local_docker.networks.create(
                 self.docker_network_name,
@@ -188,6 +189,22 @@ class GethManager(DeployManager):
             self.hosts_connections[host]["docker"]["client"].close()
             self.hosts_connections[host]["ssh"].close()
     
+    # Private utility methods
+
+    def __init_local_dir(self):
+        try:
+            shutil.rmtree(self.local_datadir)
+            os.makedirs(self.local_datadir)
+            self.logger.info("Local datadir (%s) successfully cleaned" % self.local_datadir)
+        except FileNotFoundError:
+            self.logger.info("Creating local datadir (%s)" % self.local_datadir)
+        except Exception as error:
+            self.logger.error(error)
+
+    def __create_password_file(self):
+        with open(self.FILE_PASSWORD, "w") as pw_file:
+            pw_file.write(self.account_password)
+
     def __init_genesis(self):
         if self.consensus_protocol == self.ETHASH:
             genesis_file_path = self.FILE_ETHASH
@@ -225,16 +242,6 @@ class GethManager(DeployManager):
         if not make_keystore_dir.ok:
             raise Exception("[%s]Error creating keystore dir %s" % (host, self.remote_keystore))
         connection.put(pvt_key_file, remote=os.path.join(self.remote_keystore, os.path.basename(pvt_key_file)))
-
-    def __clean_local_dir(self):
-        try:
-            shutil.rmtree(self.local_datadir)
-            os.makedirs(self.local_datadir)
-            self.logger.info("Local datadir (%s) successfully cleaned" % self.local_datadir)
-        except FileNotFoundError:
-            self.logger.warning("Local datadir (%s) not cleaned because not found" % self.local_datadir)
-        except Exception as error:
-            self.logger.error(error)
     
     def __start_local_node(self):
         local_docker = self.local_connections["docker"]["client"]

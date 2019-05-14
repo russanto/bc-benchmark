@@ -32,6 +32,7 @@ class DeployManager:
         self.cmd_events = {}
         for cmd in self.AVAILABLE_CMDS:
             self.cmd_events[cmd] = Event()
+        self.current_stage = False
 
     def enable_cmd(self, *commands):
         for cmd in commands:
@@ -115,6 +116,7 @@ class DeployManager:
         cmd = self.cmd_queue.get()
         while cmd["type"] != self.CMD_CLOSE:
             self.logger.debug("Executing %s" % cmd["type"])
+            self.current_stage = cmd["type"]
             cmd_method = getattr(self, "_%s" % cmd["type"], self._cmd)
             if cmd_method == self._cmd:
                 cmd_method(cmd["type"], cmd["args"])
@@ -127,6 +129,8 @@ class DeployManager:
                 self.cmd_events[self.CMD_START].clear()
             self.cmd_events[cmd["type"]].set()
             cmd = self.cmd_queue.get()
+        self.current_stage = self.CMD_CLOSE
+        self.cmd_events[self.CMD_CLOSE].set()
         self.logger.debug("Manager closed")
 
     def _cmd(self, cmd, args): #TODO: separe args namespaces
@@ -161,5 +165,5 @@ class DeployManager:
             stage_method(**args)
     
     def __exec_stage_not_present(self, cmd, stage):
-        # If you don't really need it, you can suppress this warning implementing the method with pass as body.
-        self.logger.warning("{1} stage for {0} command is not defined.".format(cmd, stage))
+        # If you don't really need it, you can suppress this log entry implementing the method with pass as body.
+        self.logger.debug("{1} stage for {0} command is not defined.".format(cmd, stage))
