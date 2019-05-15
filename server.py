@@ -155,14 +155,17 @@ def stop_blockchain(deploy_id):
 def start_caliper(deploy_id):
     global bc_manager
     if 'benchmark' not in request.files:
-        return jsonify({"message": 'Benchmark file is required in order to start the blockchain'}), 403
-    file = request.files['benchmark']
-    if file.filename == '':
-        return jsonify({"message": 'Empty json found'}), 403
+        benchmark_file = "./caliper/config-ethereum.yaml"
+    else:
+        file = request.files['benchmark']
+        if file.filename == '':
+            benchmark_file = "./caliper/config-ethereum.yaml"
+        else:
+            benchmark_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            file.save(benchmark_file)
     uuidObj = uuid.UUID('urn:uuid:{0}'.format(deploy_id))
     if uuidObj in bc_manager:
         caliper_deploy_id = uuid.uuid4()
-        benchmark_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         ethereum_manager = bc_manager[uuidObj]
         ethereum_adapter = CaliperEthereum(ethereum_manager)
         caliper_manager = CaliperManager(ethereum_adapter, benchmark_file)
@@ -170,6 +173,8 @@ def start_caliper(deploy_id):
         caliper_manager.init()
         caliper_manager.cleanup()
         caliper_manager.start()
+        caliper_manager.stop()
+        caliper_manager.deinit()
         bc_manager[caliper_deploy_id] = caliper_manager
         return jsonify({
             "message": "Caliper configured and started running",

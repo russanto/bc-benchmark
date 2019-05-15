@@ -10,7 +10,7 @@ With the following commands you will deploy the controller, a listening server o
 docker network create benchmark
 docker run -p 5000:5000 -v /home/ubuntu:/root -e SERVER_IP=192.168.20.161 --network benchmark -v /var/run/docker.sock:/var/run/docker.sock -e LOG_LEVEL=INFO --name orch-controller russanto/bc-orch-controller
 ```
-- */home/ubuntu* The user home directory where the necessary ssh key are installed to access target hosts with user ubuntu.
+- */home/ubuntu* The user home directory where the necessary ssh key are installed to access target hosts with user ubuntu. At the moment also this must be /home/ubuntu, so also the server that hosts the controller is required to have the ubuntu user.
 - *SERVER_IP=192.168.20.161* IP at which the controller can be reached by hosts.
 - *LOG_LEVEL=INFO* INFO and DEBUG are supported. Logs can be followed launching 'docker logs -f orch-controller'
 
