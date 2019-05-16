@@ -39,7 +39,7 @@ class CaliperManager(DeployManager):
             self.reports_dir = conf_as_dict["REPORTS_DIR"]
 
     def _init_setup(self):
-        self.__clean_local_dir()
+        self.__init_local_dir()
         shutil.copy(self.original_workload_file, self.local_datadir)
         self.workload_file = os.path.join(self.local_datadir, os.path.basename(self.original_workload_file))
         self.hosts_connections = HostManager.get_hosts_connections(self.hosts)
@@ -187,13 +187,14 @@ class CaliperManager(DeployManager):
     def _cleanup_teardown(self):
         self.logger.info("Cleanup completed")
 
-    def __clean_local_dir(self):
+    def __init_local_dir(self):
         try:
             shutil.rmtree(self.local_datadir)
             os.makedirs(self.local_datadir)
             self.logger.info("Local datadir (%s) successfully cleaned" % self.local_datadir)
         except FileNotFoundError:
-            self.logger.warning("Local datadir (%s) not cleaned because not found" % self.local_datadir)
+            os.makedirs(self.local_datadir)
+            self.logger.info("Created local datadir (%s)" % self.local_datadir)
         except Exception as error:
             self.logger.error(error)
                 

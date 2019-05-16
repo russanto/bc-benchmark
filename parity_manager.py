@@ -87,7 +87,8 @@ class ParityManager(DeployManager):
             os.makedirs(self.local_datadir)
             self.logger.info("Local datadir (%s) successfully cleaned" % self.local_datadir)
         except FileNotFoundError:
-            self.logger.info("Creating local datadir (%s)" % self.local_datadir)
+            os.makedirs(self.local_datadir)
+            self.logger.info("Created local datadir (%s)" % self.local_datadir)
         except Exception as error:
             self.logger.error(error)
 
