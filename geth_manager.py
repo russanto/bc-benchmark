@@ -28,7 +28,6 @@ class GethManager(DeployManager):
 
     FILE_CLIQUE = "./geth/clique.json"
     FILE_ETHASH = "./geth/genesis.json"
-    FILE_PASSWORD = os.path.join(local_datadir, "password.txt")
 
     @property
     def local_keystore(self):
@@ -37,6 +36,10 @@ class GethManager(DeployManager):
     @property
     def remote_keystore(self):
         return os.path.join(self.remote_datadir, "keystore")
+
+    @property
+    def FILE_PASSWORD(self):
+        return os.path.join(self.local_datadir, "password.txt")
 
     account_password = "password"
 
@@ -128,7 +131,7 @@ class GethManager(DeployManager):
         })
         self.logger.debug("[{0}]DB initiated".format(host))
         start_args = "--nodiscover --etherbase {0} --unlock {0} --password {1}".format(etherbase, "/root/.ethereum/password.txt")
-        start_args += " --rpc --rpcaddr 0.0.0.0 --rpcvhosts=* --rpcapi admin,eth,miner,personal,net,web3 --rpccorsdomain \"http://remix.ethereum.org\""
+        start_args += " --rpc --rpcaddr 0.0.0.0 --rpcvhosts=* --rpcapi admin,eth,miner,personal,net,web3 --rpccorsdomain '*'"
         start_args += " --mine --minerthreads 2 --gasprice 1"
         self.hosts_connections[host]["docker"]["containers"][self.docker_node_name] = docker_client.containers.run(
             "ethereum/client-go:stable",
