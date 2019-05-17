@@ -50,7 +50,7 @@ class BurrowManager(DeployManager):
             "spec -f%d -n %s" % (len(self.hosts), self.chain_name))
         spec_data = json.loads(spec_string)
         spec_data["Params"]["ProposalThreshold"] = self.proposal_threshold
-        with open(HostManager.resolve_local_path(self.file_spec), "w") as spec_json_file:
+        with open(self.file_spec, "w") as spec_json_file:
             json.dump(spec_data, spec_json_file)
         doc_string = local_docker["client"].containers.run(
             self.dinr.resolve("burrow-node"),
