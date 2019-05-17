@@ -55,6 +55,7 @@ class BurrowManager(DeployManager):
         doc_string = local_docker["client"].containers.run(
             self.dinr.resolve("burrow-node"),
             "configure -s spec.json -j -d --generate-node-keys -n %s" % self.chain_name,
+            user="root",
             volumes={
                 HostManager.resolve_local_path(self.local_datadir): {
                     "bind": "/home/burrow",
@@ -105,6 +106,7 @@ class BurrowManager(DeployManager):
             detach=True,
             name=self.docker_node_name,
             network=self.docker_network_name,
+            user="root",
             ports=ports,
             volumes={
                 self.remote_datadir: {
