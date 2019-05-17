@@ -27,6 +27,8 @@ Starts an Ethereum blockchain using geth. The genesis file must be passed as fil
 Starts an Ethereum blockchain using parity. The genesis file must be passed as file in the post request under the 'genesis' key. Only PoA is supported.
 ### [POST] /start/multichain/{nodes_number}/{protocol}
 Starts a Multichain blockchain using multichain 2.0.1. The params.dat file must be passed as file in the post request under the 'params' key. Protocol can be either multichain o bitcoin.
+### [POST] /start/burrow/{nodes_number}/{proposal_threshold}
+Starts a Burrow blockchain using latest Burrow release. {proposal_threshold} is the number of nodes required for Tendermint's ballots.
 ### [GET] /stop/{deployment_id}
 Stops the blockchain pointed through the deployment_id
 ### [POST] /benchmark/start/caliper/{deployment_id}
