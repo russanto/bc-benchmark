@@ -1,0 +1,15 @@
+version: '3'
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orch-controller
+    ports:
+      - "3000:5000"
+    volumes:
+      - /home/ubuntu:/root
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - LOG_LEVEL=INFO             # At the moment only INFO and DEBUG are supported 
+      - SERVER_IP=192.168.20.160   # The IP address at which the controller can be reached from the hosts
