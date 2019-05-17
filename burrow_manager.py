@@ -10,8 +10,7 @@ from host_manager import HostManager
 
 class BurrowManager(DeployManager):
 
-    local_datadir = "/home/ubuntu/burrow"
-    # local_datadir = "/Users/antonio/Documents/Universita/INSA/bc-benchmark/burrow"
+    local_datadir = "/root/burrow"
     remote_datadir = "/home/ubuntu/burrow"
 
     docker_network_name = "benchmark"
