@@ -7,6 +7,7 @@ import sys
 from threading import Thread
 import uuid
 
+from burrow_manager import BurrowManager
 from caliper_manager import CaliperManager
 from caliper_ethereum import CaliperEthereum
 from geth_manager import GethManager
@@ -135,6 +136,20 @@ def start_parity(nodes_count):
         parity_manager.init()
         parity_manager.start()
         bc_manager[deploy_id] = parity_manager
+        return jsonify({"message": "Starting network", "deploy_id": deploy_id})
+    else:
+        return jsonify({"message": 'Not enough nodes ready or available'}), 412
+
+@app.route('/start/burrow/<int:nodes_count>/<int:proposal_threshold>', methods=['POST'])
+def start_burrow(nodes_count, proposal_threshold):
+    global bc_manager
+    hosts = host_manager.reserve_hosts(nodes_count)
+    if hosts:
+        deploy_id = uuid.uuid4()
+        burrow_manager = BurrowManager(hosts, proposal_threshold)
+        burrow_manager.init()
+        burrow_manager.start()
+        bc_manager[deploy_id] = burrow_manager
         return jsonify({"message": "Starting network", "deploy_id": deploy_id})
     else:
         return jsonify({"message": 'Not enough nodes ready or available'}), 412

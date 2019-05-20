@@ -189,8 +189,8 @@ class GethManager(DeployManager):
         self.local_connections["docker"]["client"].close()
 
     def _deinit_loop(self, host):
-            self.hosts_connections[host]["docker"]["client"].close()
-            self.hosts_connections[host]["ssh"].close()
+        self.hosts_connections[host]["docker"]["client"].close()
+        self.hosts_connections[host]["ssh"].close()
     
     # Private utility methods
 

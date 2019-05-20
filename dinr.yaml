@@ -2,6 +2,9 @@ registry: "russanto"
 images:
   caliper-client: bc-orch-caliper:zoo-client
   caliper-server: bc-orch-caliper:latest
+  burrow-node:
+    registry: "hyperledger"
+    image: "burrow"
   geth-node: 
     registry: "ethereum"
     image: "client-go:stable"
