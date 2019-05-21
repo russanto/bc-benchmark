@@ -40,7 +40,11 @@ class CaliperEthereum(CaliperManagerAdapter):
         self.conf_template["ethereum"]["url"] = "http://%s:8545" % self.docker_node_name
         self.conf_template["ethereum"]["registry"]["address"] = self.registry_address
         self.conf_template["ethereum"]["contractDeployerAddress"] = self.manager.utility_node.account[0]
-        self.conf_template["ethereum"]["contractDeployerAddressPassword"] = self.manager.utility_node.account[1]        
+        self.conf_template["ethereum"]["contractDeployerAddressPassword"] = self.manager.utility_node.account[1]
+        accounts = []
+        for node in self.manager.nodes.values():
+            accounts.append({"address": node.account[0]})
+        self.conf_template["ethereum"]["accounts"] = accounts    
 
     def get_network_conf_file(self, host="utility"):
         conf_json = self.conf_template.copy()
