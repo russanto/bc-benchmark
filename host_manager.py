@@ -106,5 +106,5 @@ class HostManager:
                         for host_path, container_path in HostManager.container_volumes.items():
                                 if container_path in path:
                                         return os.path.join(host_path, path[len(container_path)+1:])
-                        logging.getLogger("HostManager").warning("Trying to resolve %s but no bindind as been found" % path)
+                        logging.getLogger("HostManager").warning("Trying to resolve %s but no binding as been found" % path)
                         return path

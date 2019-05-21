@@ -140,7 +140,7 @@ class CaliperManager(DeployManager):
                 "server": "zookeeper:2181"
             }
         }
-        
+
         with open(self.workload_file, "w") as config_file:
             yaml.dump(config_data, config_file, default_flow_style=False)
         self.logger.info("Updated workload configuration")
@@ -246,7 +246,7 @@ if __name__ == "__main__":
     manager.cleanup()
     manager.start()
     manager.cmd_events[manager.CMD_START].wait()
-    manager_adapter = CaliperEthereum(manager)
+    manager_adapter = CaliperEthereum(manager, "./caliper/ethereum.json")
     caliper_manager = CaliperManager(manager_adapter, "./caliper/config-ethereum.yaml")
     caliper_manager.parse_conf(os.environ)
     caliper_manager.init()

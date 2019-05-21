@@ -170,19 +170,26 @@ def stop_blockchain(deploy_id):
 def start_caliper(deploy_id):
     global bc_manager
     if 'benchmark' not in request.files:
-        benchmark_file = "./caliper/config-ethereum.yaml"
-    else:
-        file = request.files['benchmark']
-        if file.filename == '':
-            benchmark_file = "./caliper/config-ethereum.yaml"
-        else:
-            benchmark_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(benchmark_file)
+        return jsonify({"message": 'Benchmark file is required in order to start caliper'}), 403
+    file = request.files['benchmark']
+    if file.filename == '':
+        return jsonify({"message": 'Empty benchmark file found'}), 403
+    benchmark_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    file.save(benchmark_file)
+
+    if 'network' not in request.files:
+        return jsonify({"message": 'Network file is required in order to start caliper'}), 403
+    file = request.files['network']
+    if file.filename == '':
+        return jsonify({"message": 'Empty network file found'}), 403
+    network_file = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    file.save(network_file)
+
     uuidObj = uuid.UUID('urn:uuid:{0}'.format(deploy_id))
     if uuidObj in bc_manager:
         caliper_deploy_id = uuid.uuid4()
         ethereum_manager = bc_manager[uuidObj]
-        ethereum_adapter = CaliperEthereum(ethereum_manager)
+        ethereum_adapter = CaliperEthereum(ethereum_manager, network_file)
         caliper_manager = CaliperManager(ethereum_adapter, benchmark_file)
         caliper_manager.parse_conf(os.environ)
         caliper_manager.init()

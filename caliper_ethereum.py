@@ -12,7 +12,6 @@ from parity_manager import ParityManager
 class CaliperEthereum(CaliperManagerAdapter):
 
     FILE_REGISTRY = "./caliper/registry.json"
-    FILE_CONF_TEMPLATE = "./caliper/ethereum.json"
 
     temp_dir = "./tmp"
 
@@ -24,18 +23,19 @@ class CaliperEthereum(CaliperManagerAdapter):
     def docker_node_name(self):
         return self.manager.docker_node_name
 
-    def __init__(self, ethereum_manager):
+    def __init__(self, ethereum_manager, base_network_file):
         if not isinstance(ethereum_manager, GethManager) and not isinstance(ethereum_manager, ParityManager):
             raise Exception("CaliperEthereum works only with GethManager and ParityManager. Given " + type(ethereum_manager).__name__)
         super().__init__(ethereum_manager)
         self.logger = logging.getLogger("CaliperEthereum")
+        self.base_network_file = base_network_file
 
     def init(self):
         if not os.path.exists(self.temp_dir):
             os.makedirs(self.temp_dir)
         self.manager.cmd_events[DeployManager.CMD_START].wait()
         self.__deploy_registry(self.manager.utility_node)
-        with open(self.FILE_CONF_TEMPLATE) as conf_template_file:
+        with open(self.base_network_file) as conf_template_file:
             self.conf_template = json.load(conf_template_file)
         self.conf_template["ethereum"]["url"] = "http://%s:8545" % self.docker_node_name
         self.conf_template["ethereum"]["registry"]["address"] = self.registry_address
