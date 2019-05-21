@@ -4,6 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: bc-orch-controller
     container_name: orch-controller
     ports:
       - "3000:5000"
@@ -11,8 +12,8 @@ services:
       - /home/ubuntu:/root  # This must not change, so you need to have a ubuntu user with ssh key already configured and unlocked
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - LOG_LEVEL=INFO             # Only INFO and DEBUG are supported 
-      - SERVER_IP=192.168.20.160   # The IP address at which the controller can be reached from the hosts
+      - LOG_LEVEL=INFO      # Only INFO and DEBUG are supported 
+      - SERVER_IP           # The IP address at which the controller can be reached from the hosts
     networks:
       - benchmark
 networks: 
