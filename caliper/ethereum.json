@@ -18,11 +18,9 @@
                 "path": "src/contract/ethereum/simple/simple.json"
             },
             "mintable": {
-                "path": "src/contract/ethereum/erc20/mintable.json"
-            },
-            "capped": {
-                "path": "src/contract/ethereum/erc20/capped.json",
-                "constructorArgs": [100000]
+                "path": "src/contract/ethereum/erc20/mintable.json",
+                "constructorArgs": [1000000],
+                "init": "src/contract/ethereum/erc20/init.js"
             }
         },
         "accounts": [
