@@ -133,6 +133,7 @@ class GethManager(DeployManager):
         start_args = "--nodiscover --etherbase {0} --unlock {0} --password {1}".format(etherbase, "/root/.ethereum/password.txt")
         start_args += " --rpc --rpcaddr 0.0.0.0 --rpcvhosts=* --rpcapi admin,eth,miner,personal,net,web3 --rpccorsdomain '*'"
         start_args += " --mine --minerthreads 2 --gasprice 1"
+        start_args += " --verbosity 5"
         self.hosts_connections[host]["docker"]["containers"][self.docker_node_name] = docker_client.containers.run(
             "ethereum/client-go:stable",
             start_args,

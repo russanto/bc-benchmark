@@ -1,5 +1,7 @@
 registry: "russanto"
 images:
+  bp-server: block-propagation:server
+  bp-client: bc-orch-block-propagation
   caliper-client: bc-orch-caliper:zoo-client
   caliper-server: bc-orch-caliper:latest
   burrow-node:

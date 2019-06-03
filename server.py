@@ -4,10 +4,10 @@ import logging
 import os
 import queue
 import sys
-from threading import Thread
 import uuid
 
 from burrow_manager import BurrowManager
+from block_propagation_manager import BlockPropagationManager
 from caliper_manager import CaliperManager
 from caliper_ethereum import CaliperEthereum
 from geth_manager import GethManager
@@ -201,6 +201,25 @@ def start_caliper(deploy_id):
         return jsonify({
             "message": "Caliper configured and started running",
             "deploy_id": caliper_deploy_id
+        })
+    return jsonify({"message": 'Deploy session not found'}), 404
+
+@app.route('/benchmark/start/block-propagation/<string:deploy_id>', methods=['POST'])
+def start_block_propagation(deploy_id):
+    global bc_manager
+    uuidObj = uuid.UUID('urn:uuid:{0}'.format(deploy_id))
+    if uuidObj in bc_manager:
+        bp_id = uuid.uuid4()
+        if not isinstance(bc_manager[uuidObj], GethManager):
+            return jsonify({"message": 'Deploy session is not a Geth session'}), 403
+        geth_manager = bc_manager[uuidObj]
+        bp_manager = BlockPropagationManager(geth_manager.hosts)
+        bp_manager.init()
+        bp_manager.start()
+        bc_manager[bp_id] = bp_manager
+        return jsonify({
+            "message": "Block configuration reachable at %s:%d/follow" % (HostManager.get_local_connections(False)['ip'], bp_manager.server_port),
+            "deploy_id": bp_id
         })
     return jsonify({"message": 'Deploy session not found'}), 404
 
