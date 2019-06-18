@@ -90,6 +90,7 @@ class BlockPropagationManager(DeployManager):
         for _, container in self.local_connections["docker"]["containers"].items():
             container.stop()
             container.remove()
+        self.logger.info("[%s]Stopped log collector")
 
     def _stop_loop(self, host):
         for _, container in self.hosts_connections[host]["docker"]["containers"].items():
