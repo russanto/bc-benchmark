@@ -113,10 +113,8 @@ class CaliperManager(DeployManager):
     
     def _start_teardown(self):
         self._start_caliper_workload()
-        self.logger.info("Caliper started. Fetching live log...")
-        log_stream = self.local_connections["docker"]["containers"][self.docker_container_server_name].logs(follow=True, stream=True)
-        for line in log_stream:
-            print(line.decode("utf-8").strip("\n"))
+        self.logger.info("Caliper started. Log available running 'docker logs -f caliper'")
+        self.local_connections["docker"]["containers"][self.docker_container_server_name].wait()
 
     def _start_caliper_workload(self):
         with open(self.workload_file) as config_file:
