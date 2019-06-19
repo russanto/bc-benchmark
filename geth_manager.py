@@ -29,6 +29,8 @@ class GethManager(DeployManager):
     FILE_CLIQUE = "./geth/clique.json"
     FILE_ETHASH = "./geth/genesis.json"
 
+    upload_all_keys = True
+
     @property
     def local_keystore(self):
         return os.path.join(self.local_datadir, "keystore")
@@ -113,6 +115,10 @@ class GethManager(DeployManager):
         etherbase_key_file = self.pvt_key_queue.get()
         self.logger.debug("Deploying node at %s" % host)
         self.__upload_node_files(host, os.path.join(self.local_keystore, etherbase_key_file))
+        if self.upload_all_keys:
+            all_keys = os.listdir(os.path.join(self.local_datadir, "keystore"))
+            all_keys.remove(etherbase_key_file)
+            self.__upload_keys(host, all_keys)
         etherbase = etherbase_key_file.split("--")[2]
         docker_client = self.hosts_connections[host]["docker"]["client"]
         try:
@@ -248,6 +254,12 @@ class GethManager(DeployManager):
         if not make_keystore_dir.ok:
             raise Exception("[%s]Error creating keystore dir %s" % (host, self.remote_keystore))
         connection.put(pvt_key_file, remote=os.path.join(self.remote_keystore, os.path.basename(pvt_key_file)))
+
+    def __upload_keys(self, host, keys):
+        ssh = self.hosts_connections[host]["ssh"]
+        for key in keys:
+            ssh.put(key, remote=os.path.join(self.remote_keystore, os.path.basename(key)))
+        self.logger.info("[%s] All pvt keys uploaded")
     
     def __start_local_node(self):
         local_docker = self.local_connections["docker"]["client"]
