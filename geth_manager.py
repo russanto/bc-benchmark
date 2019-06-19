@@ -258,7 +258,7 @@ class GethManager(DeployManager):
     def __upload_keys(self, host, keys):
         ssh = self.hosts_connections[host]["ssh"]
         for key in keys:
-            ssh.put(key, remote=os.path.join(self.remote_keystore, os.path.basename(key)))
+            ssh.put(os.path.join(self.local_keystore, key), remote=os.path.join(self.remote_keystore, os.path.basename(key)))
         self.logger.info("[%s] All pvt keys uploaded")
     
     def __start_local_node(self):
