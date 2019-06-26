@@ -6,12 +6,10 @@ __pycache__/
 
 tmp/
 
-log-analyzer/bin/
-log-analyzer/pkg/
-log-analyzer/csv/
+resource_manager/openstack/ssh-keys/*
+resource_manager/openstack/clouds.yaml
 
-orchestration/ssh-keys/*
-orchestration/clouds.yaml
+clouds.yaml
 
 \.vscode/
 
