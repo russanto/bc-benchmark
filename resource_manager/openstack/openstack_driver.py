@@ -1,5 +1,6 @@
 from fabric import Connection
 import logging
+import os
 import time
 
 #TODO: Manage keys and upload them if not present
@@ -8,10 +9,10 @@ class OpenstackDriver:
 
     base_image = "Ubuntu18-Docker-API"
 
-    controller_flavor = "m1.small"
-    controller_port = 5000
+    controller_flavor = "ar1.medium"
+    controller_port = 3000
 
-    node_flavor = "m1.small"
+    node_flavor = "ar1.large"
 
     ssh_key_controller = "AntonioMac"
     ssh_key_nodes = "Deployer"
@@ -76,10 +77,17 @@ class OpenstackDriver:
 
     def get_controller_init_script(self):
         script = ""
-        with open("scripts/controller-init-script.sh") as script_file:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts/controller-init-script.sh")) as script_file:
             for line in script_file:
                 script += "%s\n" % line
         return script
 
     def get_nodes_init_script(self, controller_host):
         return "#!/bin/bash\nresult=$(curl -LI http://{0}:{1}/ready/$(curl -s http://169.254.169.254/2009-04-04/meta-data/local-ipv4) -o /dev/null -w '%{{http_code}}' -s)\nwhile [ $result != 200 ]\ndo\nsleep 3\necho wait3\nresult=$(curl -LI http://{0}:{1}/ready/$(curl -s http://169.254.169.254/2009-04-04/meta-data/local-ipv4) -o /dev/null -w '%{{http_code}}' -s)\ndone".format(controller_host, self.controller_port)
+
+if __name__ == "__main__":
+    import openstack
+    logging.basicConfig(level=logging.INFO)
+    openstack_driver = OpenstackDriver(openstack.connect(cloud="openstack"))
+    openstack_driver.deploy_controller()
+    openstack_driver.deploy_nodes("benchmark",4)
