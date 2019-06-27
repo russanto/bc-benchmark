@@ -14,8 +14,9 @@ class OpenstackDriver:
 
     node_flavor = "ar1.large"
 
-    ssh_key_controller = "AntonioMac"
+    ssh_key_controller = "ControllerKey"
     ssh_key_nodes = "Deployer"
+    ssh_pvt_key_nodes = "Deployer"
 
     def __init__(self, connection):
         self.controller = None
@@ -44,8 +45,11 @@ class OpenstackDriver:
         ssh_key_uploaded = False
         while not ssh_key_uploaded:
             try:
-                ssh_cnx.put("./ssh-keys/" + self.ssh_key_nodes, remote="/home/ubuntu/.ssh/id_rsa")
+                ssh_cnx.put(self.ssh_pvt_key_nodes, remote="/home/ubuntu/.ssh/id_rsa")
                 ssh_key_uploaded = True
+            except FileNotFoundError as error:
+                self.logger.error("Node private key file not found.")
+                self.logger.error(error)
             except:
                 self.logger.debug("Not yet ready")
                 time.sleep(5)
@@ -55,8 +59,9 @@ class OpenstackDriver:
     
     def deploy_nodes(self, label, quantity, wait=True, timeout=300):
         # Create server group
-        group = self.connection.create_server_group(label, ["anti-affinity"])
-        self.logger.info("Created group %s (%s)" % (group["name"], group["id"]))
+        # group = self.connection.create_server_group(label, ["affinity"])
+        # group = self.connection.create_server_group(label, ["anti-affinity"])
+        # self.logger.info("Created group %s (%s)" % (group["name"], group["id"]))
 
         # Create node instances
         server = self.connection.create_server(
@@ -64,7 +69,7 @@ class OpenstackDriver:
             image=self.base_image,
             flavor=self.node_flavor,
             userdata=self.get_nodes_init_script(self.controller["private_v4"]),
-            group=group,
+            # group=group,
             min_count=quantity,
             max_count=quantity,
             key_name=self.ssh_key_nodes

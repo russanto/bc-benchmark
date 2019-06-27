@@ -259,7 +259,7 @@ class GethManager(DeployManager):
         ssh = self.hosts_connections[host]["ssh"]
         for key in keys:
             ssh.put(os.path.join(self.local_keystore, key), remote=os.path.join(self.remote_keystore, os.path.basename(key)))
-        self.logger.info("[%s] All pvt keys uploaded")
+        self.logger.info("[%s] All pvt keys uploaded" % host)
     
     def __start_local_node(self):
         local_docker = self.local_connections["docker"]["client"]
