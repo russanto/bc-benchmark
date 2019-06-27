@@ -1,6 +1,7 @@
 docker
 fabric
 flask
+openstacksdk
 pyyaml
 requests
 toml
