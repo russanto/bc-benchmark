@@ -1,19 +1,31 @@
 version: '3.5'
 services:
-  controller:
+  orchestrator:
     build:
-      context: .
+      context: ./orchestrator
       dockerfile: Dockerfile
-    image: bc-orch-controller
-    container_name: orch-controller
-    ports:
-      - "3000:5000"
-    volumes:
-      - /home/ubuntu:/root  # This must not change, so you need to have a ubuntu user with ssh key already configured and unlocked
-      - /var/run/docker.sock:/var/run/docker.sock
+    image: bc-orch-orchestrator
+    container_name: orchestrator
     environment:
-      - LOG_LEVEL=INFO      # Only INFO and DEBUG are supported 
-      - SERVER_IP           # The IP address at which the controller can be reached from the hosts
+      - RABBITMQ=rabbitmq
+      - LOG_LEVEL=INFO
+    restart: on-failure
+    networks:
+      - benchmark
+  host_manager:
+    build:
+      context: ./resource_manager/host_manager
+      dockerfile: Dockerfile
+    image: bc-orch-host-manager
+    container_name: host_manager
+    environment:
+      - RABBITMQ=rabbitmq
+      - LOG_LEVEL=INFO
+    restart: on-failure
+    networks:
+      - benchmark
+  rabbitmq:
+    image: rabbitmq
     networks:
       - benchmark
 networks: 

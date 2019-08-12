@@ -51,13 +51,15 @@ class OpenstackDriver:
                 self.logger.error("Node private key file not found.")
                 self.logger.error(error)
             except:
-                self.logger.debug("Not yet ready")
+                self.logger.debug("Not yet ready")  #Gestisci gli errori diversi da quelli che ti aspetti
                 time.sleep(5)
         ssh_cnx.close()
         self.controller = server
         return server
     
     def deploy_nodes(self, label, quantity, wait=True, timeout=300):
+        # Add logging message to give feedback
+
         # Create server group
         # group = self.connection.create_server_group(label, ["affinity"])
         # group = self.connection.create_server_group(label, ["anti-affinity"])
