@@ -3,6 +3,8 @@ import logging
 
 import pika
 
+from a_host_service import AHostService
+
 class RMQHostManager:
 
     BROADCAST_EXCHANGE = 'broadcast'
@@ -12,6 +14,7 @@ class RMQHostManager:
         self.logger = logging.getLogger('RMQHostManager')
         self.endpoint = endpoint
         self.host_manager = host_manager
+        self.__services = {}
         self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=endpoint))
         self.channel = self.connection.channel()
         self.logger.info("Connected to RabbitMQ at %s", endpoint)
@@ -22,6 +25,11 @@ class RMQHostManager:
         #TODO eliminate auto_ack and provide an appropriate acknoledge mechanism
         self.channel.basic_consume(queue=self.CMD_QUEUE, on_message_callback=self.__msg_callback, auto_ack=True)
     
+    def register_service(self, key, host_service):
+        if not isinstance(host_service, AHostService):
+            raise Exception('host_service must be AHostService instance')
+        self.__services[key] = host_service
+
     def start(self):
         self.logger.info("Started with RabbitMQ at %s", self.endpoint)
         try:
@@ -56,16 +64,22 @@ class RMQHostManager:
                 'status': 200,
                 'data': {'host_list': host_list}
             }))
-        elif msg['cmd'] == 'prepare':
+        elif msg['cmd'] == 'service':
             if 'args' not in msg:
                 self.__error_reply(properties, 400, 'No args dictionary provided')
                 return
-            if 'host_list' not in msg['args']:
-                self.__error_reply(properties, 400, 'Missing argument: host_list')
+            if 'service' not in msg['args']:
+                self.__error_reply(properties, 400, 'No service specified')
                 return
-            self.__prepare(msg['cmd']['host_list'])
+            if msg['args']['service'] not in self.__services:
+                self.__error_reply(properties, 400, 'Specified service is not supported')
+                return
+            if 'hosts' not in msg['args']:
+                self.__error_reply(properties, 400, 'Missing argument: hosts')
+                return
             self.channel.basic_publish(**self.__json_response(properties, {
-                'status': 200
+                'status': 200,
+                'data': self.__service(**msg['args'])
             }))
         elif msg['cmd'] == 'free':
             if 'args' not in msg:
@@ -76,7 +90,8 @@ class RMQHostManager:
                 return
             self.__free(msg['args']['host_list'])
             self.channel.basic_publish(**self.__json_response(properties, {
-                'status': 200
+                'status': 200,
+                'data': {'host_list': msg['args']['host_list']}
             }))
         else:
             self.logger.error("Command %s not supported", msg['cmd'])
@@ -108,8 +123,11 @@ class RMQHostManager:
     def __reserve(self, host_count):
         return self.host_manager.reserve(host_count)
 
-    def __prepare(self, host_list):
-        self.logger.error("Prepare CMD call not implemented yet")
+    def __service(self, service, hosts, params=None):
+        if params:
+            return self.__services[service].prepare(hosts, params)
+        else:
+            return self.__services[service].prepare(hosts)
     
     def __free(self, host_list):
         return self.host_manager.free(host_list)

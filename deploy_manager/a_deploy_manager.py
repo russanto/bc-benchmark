@@ -2,16 +2,12 @@ import abc
 
 class ADeployManager(abc.ABC):
 
-    @abc.abstractproperty
-    def id(self):
-        pass
-
     @abc.abstractmethod
     def init(self, host_list):
         pass
 
     @abc.abstractmethod
-    def start(self, deploy_conf):
+    def start(self, conf):
         pass
 
     @abc.abstractmethod

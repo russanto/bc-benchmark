@@ -7,22 +7,20 @@ from a_deploy_manager import ADeployManager
 
 class RMQDeployManager:
 
-    def __init__(self, endpoint, deploy_manager):
+    def __init__(self, connection, identifier, deploy_manager):
         if not isinstance(deploy_manager, ADeployManager):
             raise Exception("An ADeployManager is required. Given %s" % type(deploy_manager).__name__)
-        self.logger = logging.getLogger('RMQHostManager')
-        self.endpoint = endpoint
+        self.logger = logging.getLogger('RMQDeployManager')
         self.deploy_manager = deploy_manager
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=endpoint))
+        self.connection = connection
         self.channel = self.connection.channel()
-        self.logger.info("Connected to RabbitMQ at %s", endpoint)
-        self.channel.queue_declare(queue=self.deploy_manager.id, auto_delete=True)
+        self.channel.queue_declare(queue=identifier, auto_delete=True)
         self.logger.info("Messaging model initialized")
         #TODO eliminate auto_ack and provide an appropriate acknoledge mechanism
-        self.channel.basic_consume(queue=self.deploy_manager.id, on_message_callback=self.__msg_callback, auto_ack=True)
+        self.channel.basic_consume(queue=identifier, on_message_callback=self.__msg_callback, auto_ack=True)
     
     def listen(self):
-        self.logger.info("Started with RabbitMQ at %s", self.endpoint)
+        self.logger.info("Started serving with RabbitMQ")
         try:
             self.channel.start_consuming()
         except KeyboardInterrupt:
@@ -101,7 +99,7 @@ class RMQDeployManager:
             "status": code,
             'message': message
         }))
-        self.logger.error("REPLY - Status: 400 - Message: %s", message)
+        self.logger.error("REPLY - Status: %d - Message: %s", code, message)
 
     def __json_response(self, props, body):
         return {

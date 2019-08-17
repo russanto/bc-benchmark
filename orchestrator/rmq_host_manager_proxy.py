@@ -50,12 +50,7 @@ class RMQHostManagerProxy:
         )
         return corr_id
 
-    def free_callback_factory(self, on_success, on_failure=None):
-        def callback(msg):
-            pass
-        return callback
-
-    def reserve_callback_factory(self, on_success, on_failure=None):
+    def callback_factory(self, on_success, on_failure=None):
         def callback(msg):
             try:
                 msg_json = json.loads(msg.decode('utf-8'))

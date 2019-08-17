@@ -56,5 +56,6 @@ class HostManager:
                     try:
                         self._reservations.remove(host)
                         self._hosts.append(host)
+                        self.logger.info("Freed %s", host)
                     except ValueError:
                         self.logger.warning('Host %s was not previously reserved', host)

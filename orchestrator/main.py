@@ -18,16 +18,36 @@ if "RABBITMQ" not in os.environ:
     logger.error("RabbitMQ endpoint not set in environment RABBITMQ")
     sys.exit(1)
 
-def on_success():
-    logger.info('Op success')
-
-host_list = ['192.168.1.1', '192.168.1.2']
-
 rmq_orchestrator = RMQOrchestratorProxy(os.environ['RABBITMQ'])
-rmq_orchestrator.deploy_manager_init(host_list, on_success)
-rmq_orchestrator.deploy_manager_start({}, on_success)
-rmq_orchestrator.deploy_manager_stop(on_success)
-rmq_orchestrator.deploy_manager_deinit(host_list, on_success)
+hosts_list = []
+
+
+def on_free_success(hosts):
+    print("Free: " + ', '.join(hosts))
+
+
+
+def on_deinit_success():
+    print("Game Over")
+
+def on_stop_success():
+    rmq_orchestrator.deploy_manager_deinit(hosts_list, on_deinit_success)
+
+def on_start_success():
+    time.sleep(30)
+    rmq_orchestrator.deploy_manager_stop(on_stop_success)
+
+def on_init_success():
+    rmq_orchestrator.deploy_manager_start({}, on_start_success)
+
+def on_reserve_success(hosts):
+    print("Reserved: " + ', '.join(hosts))
+    hosts_list.extend(hosts)
+    rmq_orchestrator.deploy_manager_init(hosts_list, on_init_success)
+    
+rmq_orchestrator.host_manager_reserve(1, on_reserve_success)
+
+
 rmq_orchestrator.listen()
 
 # UPLOAD_FOLDER = "/Users/antonio/Documents/Universita/INSA/bc-benchmark/uploads"

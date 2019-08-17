@@ -33,7 +33,7 @@ class RMQOrchestratorProxy:
         except pika.exceptions.ChannelClosedByBroker:
             self.logger.error("HostManager not found")
         try:
-            self.__deploy_manager = RMQDeployManagerProxy(self.channel_producer, 'stub_dm', self.REPLY_QUEUE)
+            self.__deploy_manager = RMQDeployManagerProxy(self.channel_producer, 'deploy_manager', self.REPLY_QUEUE)
         except pika.exceptions.ChannelClosedByBroker:
             self.logger.error("DeployManager not found")
         
@@ -46,11 +46,11 @@ class RMQOrchestratorProxy:
     
     def host_manager_reserve(self, host_count, on_success, on_failure=None):
         corr_id = self.__host_manager.reserve(host_count)
-        self.requests[corr_id] = self.__host_manager.reserve_callback_factory(on_success=on_success, on_failure=on_failure)
+        self.requests[corr_id] = self.__host_manager.callback_factory(on_success=on_success, on_failure=on_failure)
     
     def host_manager_free(self, host_list, on_success, on_failure=None):
         corr_id = self.__host_manager.free(host_list)
-        self.requests[corr_id] = self.__host_manager.free_callback_factory(on_success=on_success, on_failure=on_failure)
+        self.requests[corr_id] = self.__host_manager.callback_factory(on_success=on_success, on_failure=on_failure)
 
     def deploy_manager_init(self, host_list, on_success, on_failure=None):
         corr_id = self.__deploy_manager.init(host_list)
