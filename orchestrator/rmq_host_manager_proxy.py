@@ -55,7 +55,7 @@ class RMQHostManagerProxy:
             try:
                 msg_json = json.loads(msg.decode('utf-8'))
                 if msg_json['status'] == 200:
-                    on_success(msg_json['data']['host_list'])
+                    on_success(msg_json['data']['hosts'])
             except:
                 self.logger.error("Error processing reply")
                 if on_failure:

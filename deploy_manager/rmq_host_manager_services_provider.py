@@ -1,12 +1,12 @@
 import logging
 import threading
 
+from bc_orch_sdk.rmq_rpc_client import RMQRPCClient
 import docker
 from fabric import Connection
 
 from a_host_manager_service_plugin import AHostManagerServicePlugin
 from a_services_provider import AServicesProvider
-from rmq_rpc_client import RMQRPCClient
 
 class RMQHostManagerServicesProvider(AServicesProvider):
 
@@ -44,6 +44,8 @@ class RMQHostManagerServicesProvider(AServicesProvider):
         }
         if params:
             service_args['params'] = params
+        else:
+            service_args['params'] = {}
 
         def on_successfull_request(data):
             if service in self.__plugins:

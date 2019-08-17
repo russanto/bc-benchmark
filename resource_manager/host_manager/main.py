@@ -32,4 +32,7 @@ docker_service = DockerHostService()
 ssh_service = SSHHostService()
 rmq_host_manager.register_service('docker', docker_service)
 rmq_host_manager.register_service('ssh', ssh_service)
-rmq_host_manager.start()
+try:
+    rmq_host_manager.run()
+except KeyboardInterrupt:
+    logger.info('Stopping server')

@@ -52,10 +52,13 @@ class HostManager:
 
         def free(self, host_list):
             with self._hosts_lock:
+                freed = []
                 for host in host_list:
                     try:
                         self._reservations.remove(host)
                         self._hosts.append(host)
+                        freed.append(host)
                         self.logger.info("Freed %s", host)
                     except ValueError:
                         self.logger.warning('Host %s was not previously reserved', host)
+                return freed

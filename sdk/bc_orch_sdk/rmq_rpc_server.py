@@ -22,10 +22,7 @@ class RMQRPCServer:
             self.__call_args[name] = args
 
     def run(self):
-        try:
-            self.channel.start_consuming()
-        except KeyboardInterrupt:
-            self.logger.info('Closing because user interrupt')
+        self.channel.start_consuming()
 
     def __on_request(self, ch, method, props, body):
         msg = json.loads(body.decode('utf-8'))
@@ -37,25 +34,27 @@ class RMQRPCServer:
             self.logger.error('Unknown command received')
             self.__error_reply(props, 400, 'Unknown command received')
             return
-        if msg['cmd'] in self.__call_args:
-            for arg, type_check in self.__call_args[msg['cmd']].items():
-                if arg not in msg['args']:
-                    self.logger.error('Argument %s is required for command %s', arg, msg['cmd'])
-                    self.__error_reply(props, 400, 'Unknown command received')
-                    return
-                if not isinstance(msg['args'][arg], type_check):
-                    self.logger.error('Argument %s is required to be of type %s', arg, type_check.__name__)
-                    self.__error_reply(props, 400, 'Unknown command received')
-                    return
-            for arg in msg['args']:
-                if arg not in self.__call_args[msg['cmd']]:
-                    self.logger.warning('Discarding argument %s because not required', arg)
-                    del msg['args'][arg]
-            result = self.__call_function[msg['cmd']](**msg['args'])
-        else:
-            result = self.__call_function[msg['cmd']]()
-        self.__success_reply(props, result)
-        
+        try:
+            if msg['cmd'] in self.__call_args:
+                for arg, type_check in self.__call_args[msg['cmd']].items():
+                    if arg not in msg['args']:
+                        self.logger.error('Argument %s is required for command %s', arg, msg['cmd'])
+                        self.__error_reply(props, 400, 'Unknown command received')
+                        return
+                    if not isinstance(msg['args'][arg], type_check):
+                        self.logger.error('Argument %s is required to be of type %s', arg, type_check.__name__)
+                        self.__error_reply(props, 400, 'Unknown command received')
+                        return
+                for arg in msg['args']:
+                    if arg not in self.__call_args[msg['cmd']]:
+                        self.logger.warning('Discarding argument %s because not required', arg)
+                        del msg['args'][arg]
+                result = self.__call_function[msg['cmd']](**msg['args'])
+            else:
+                result = self.__call_function[msg['cmd']]()
+            self.__success_reply(props, result)
+        except Exception as error:
+            self.__error_reply(props, 500, str(error))
 
     def __success_reply(self, props, data):
         self.channel.basic_publish(**self.__json_response(props, {

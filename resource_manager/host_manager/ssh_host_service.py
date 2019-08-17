@@ -1,7 +1,7 @@
 from a_host_service import AHostService
 
 class SSHHostService(AHostService):
-    def prepare(self, hosts):
+    def prepare(self, hosts, params=None):
         prepared_hosts = {}
         for i, host in enumerate(hosts):
             prepared_hosts[host] = {
