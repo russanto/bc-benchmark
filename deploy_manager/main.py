@@ -2,12 +2,12 @@ import logging
 import os
 import sys
 
+from bc_orch_sdk.rmq_deploy_manager import RMQDeployManager
+from bc_orch_sdk.rmq_host_manager_services_provider import RMQHostManagerServicesProvider
 import pika
 
 from docker_service_plugin import DockerServicePlugin
 from geth_manager import GethManager
-from rmq_deploy_manager import RMQDeployManager
-from rmq_host_manager_services_provider import RMQHostManagerServicesProvider
 from ssh_service_plugin import SSHServicePlugin
 
 logger = logging.getLogger("Orchestrator")

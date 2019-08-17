@@ -1,13 +1,29 @@
+import abc
 import logging
 from queue import Queue
 from threading import Event, Thread
 import time
 
-from a_deploy_manager import ADeployManager
-from docker_images_name_resolver import DockerImagesNameResolver
+from .a_services_provider import AServicesProvider
+from .docker_images_name_resolver import DockerImagesNameResolver
 
-# TODO: catch SIGINT/SIGKILL signals
-# TODO: create events for each stage
+class ADeployManager(abc.ABC):
+
+    @abc.abstractmethod
+    def init(self, host_list):
+        pass
+
+    @abc.abstractmethod
+    def start(self, conf):
+        pass
+
+    @abc.abstractmethod
+    def stop(self):
+        pass
+
+    @abc.abstractmethod
+    def deinit(self, host_list):
+        pass
 
 class BaseDeployManager(ADeployManager):
 
@@ -157,3 +173,33 @@ class BaseDeployManager(ADeployManager):
     def __exec_stage_not_present(self, cmd, stage):
         # If you don't really need it, you can suppress this log entry implementing the method with pass as body.
         self.logger.debug("{1} stage for {0} command is not defined.".format(cmd, stage))
+
+class DeployManager(BaseDeployManager):
+
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger('DeployManager')
+        self.services = {}
+
+    def register_service_provider(self, service_provider):
+        if not isinstance(service_provider, AServicesProvider):
+            self.logger.error("Service provider must be instance of AServiceProvider")
+            raise Exception("Service provider must be instance of AServiceProvider")
+        for service in service_provider.available_services:
+            self.services[service] = service_provider
+
+    def request_service(self, service, hosts, params=None):
+        if service in self.services:
+            return self.services[service].request(service, hosts, params)
+        else:
+            self.logger.error("Service %s has not any registered provider", service)
+            raise Exception("Service %s has not any registered provider" % service)
+
+    def wait_service(self, service, request_id):
+        if service in self.services:
+            return self.services[service].service(request_id)
+        else:
+            self.logger.error("Service %s has not any registered provider", service)
+            raise Exception("Service %s has not any registered provider" % service)
+
+        

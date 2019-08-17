@@ -9,10 +9,11 @@ from threading import Event, Thread
 import time
 from web3 import Web3, HTTPProvider, WebsocketProvider
 
-from deploy_manager import DeployManager
+from bc_orch_sdk.deploy_manager import DeployManager
+
 from ethereum_node import EthereumNode
 from host_manager import HostManager
-from rmq_host_manager_services_provider import RMQHostManagerServicesProvider
+from bc_orch_sdk.rmq_host_manager_services_provider import RMQHostManagerServicesProvider
 
 # TODO: Implement wait function for bc to be ready
 

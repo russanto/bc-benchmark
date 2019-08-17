@@ -1,12 +1,12 @@
 import logging
 import threading
 
-from bc_orch_sdk.rmq_rpc_client import RMQRPCClient
 import docker
 from fabric import Connection
 
-from a_host_manager_service_plugin import AHostManagerServicePlugin
-from a_services_provider import AServicesProvider
+from .a_host_manager_service_plugin import AHostManagerServicePlugin
+from .a_services_provider import AServicesProvider
+from .rmq_rpc import RMQRPCClient
 
 class RMQHostManagerServicesProvider(AServicesProvider):
 

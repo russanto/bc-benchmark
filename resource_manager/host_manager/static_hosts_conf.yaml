@@ -1,0 +1,10 @@
+hosts:
+  192.168.99.106:
+    username: docker
+    keyfile: /Users/antonio/.docker/machine/machines/node1/id_rsa
+  192.168.99.107:
+    username: docker
+    keyfile: /Users/antonio/.docker/machine/machines/node2/id_rsa
+  192.168.99.108:
+    username: docker
+    keyfile: /Users/antonio/.docker/machine/machines/node3/id_rsa

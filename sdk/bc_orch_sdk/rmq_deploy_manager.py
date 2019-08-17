@@ -3,7 +3,7 @@ import logging
 
 import pika
 
-from a_deploy_manager import ADeployManager
+from .deploy_manager import ADeployManager
 
 class RMQDeployManager:
 

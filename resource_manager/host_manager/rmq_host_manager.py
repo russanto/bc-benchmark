@@ -1,7 +1,7 @@
 import json
 import logging
 
-from bc_orch_sdk.rmq_rpc_server import RMQRPCServer
+from bc_orch_sdk.rmq_rpc import RMQRPCServer
 import pika
 
 from a_host_service import AHostService

@@ -1,6 +1,6 @@
 import docker
 
-from a_host_manager_service_plugin import AHostManagerServicePlugin
+from bc_orch_sdk.a_host_manager_service_plugin import AHostManagerServicePlugin
 
 class DockerServicePlugin(AHostManagerServicePlugin):
     def transform(self, response_data):
