@@ -5,7 +5,6 @@ from threading import Event, Thread
 import time
 
 from .a_services_provider import AServicesProvider
-from .docker_images_name_resolver import DockerImagesNameResolver
 
 class ADeployManager(abc.ABC):
 
@@ -52,7 +51,6 @@ class BaseDeployManager(ADeployManager):
         self.hosts = {}
         self.executing_hosts = []
         self.logger = logging.getLogger("BaseDeployManager")
-        self.dinr = DockerImagesNameResolver()
         
     def init(self, host_list):
         for host in host_list:

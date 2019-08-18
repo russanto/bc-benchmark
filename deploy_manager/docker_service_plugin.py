@@ -11,4 +11,5 @@ class DockerServicePlugin(AHostManagerServicePlugin):
         connections = {}
         for host, data in response_data['connections'].items():
             connections[host] = docker.DockerClient(base_url='tcp://%s:%d' % (host, data['port']))
-        return connections
+        response_data['connections'] = connections
+        return response_data

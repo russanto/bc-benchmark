@@ -25,6 +25,7 @@ class GethManager(DeployManager):
     local_datadir = "/root/geth"
     remote_datadir = "/home/ubuntu/ethereum"
 
+    docker_image_name = 'ethereum/client-go:stable'
     docker_node_name = "geth-node"
     docker_network_name = "benchmark"
 
@@ -71,18 +72,22 @@ class GethManager(DeployManager):
 
     def _init_setup(self, hosts):
         ssh_req = super().request_service('ssh', hosts)
-        docker_req = super().request_service('docker', hosts)
+        docker_req = super().request_service('docker', hosts, {'images': [self.docker_image_name]})
         ssh_connections = super().wait_service('ssh', ssh_req)
-        docker_connections = super().wait_service('docker', docker_req)
+        docker_service = super().wait_service('docker', docker_req)
         for host in hosts:
             self.hosts_connections[host] = {
                 'ssh': ssh_connections[host],
                 'docker': {
-                    'client': docker_connections[host],
+                    'client': docker_service['connections'][host],
                     'containers': {},
                     'networks': {}
                 }
             }
+        if self.docker_image_name in docker_service['images']:
+            self.docker_image_name = docker_service['images'][self.docker_image_name]
+        else:
+            self.logger.warning("Image %s hasn't been prepared before on hosts", self.docker_image_name)
         self.__start_local_node()
     
     def _init_loop(self, host):
@@ -275,7 +280,7 @@ class GethManager(DeployManager):
             else:
                 self.logger.error(error)
         local_geth_node = local_docker.containers.run(
-            self.dinr.resolve("geth-node"),
+            self.docker_image_name,
             "--rpc --rpcapi admin,eth,miner,personal,net,web3 --rpcaddr 0.0.0.0 --rpcvhosts=* --nodiscover",
             detach=True,
             volumes={

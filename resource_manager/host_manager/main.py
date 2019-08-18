@@ -4,11 +4,12 @@ import sys
 import time
 
 import pika
+import yaml
 
-from docker_host_service import DockerHostService
 from host_manager import HostManager
+from host_services.docker_host_service import DockerHostService
+from host_services.ssh_host_service import SSHHostService
 from rmq_host_manager import RMQHostManager
-from ssh_host_service import SSHHostService
 
 logger = logging.getLogger("HostManager")
 if "LOG_LEVEL" in os.environ:
@@ -23,12 +24,13 @@ if "RABBITMQ" not in os.environ:
     sys.exit(1)
 
 host_manager = HostManager()
-host_manager.add_host('192.168.99.106')
-host_manager.add_host('192.168.99.107')
-host_manager.add_host('192.168.99.108')
+with open('static_hosts_conf.yaml') as host_conf_file:
+    hosts = yaml.load(host_conf_file)
+for host in hosts['hosts']:
+    host_manager.add_host(host)
 
 rmq_host_manager = RMQHostManager(os.environ["RABBITMQ"], host_manager)
-docker_service = DockerHostService()
+docker_service = DockerHostService('localhost:5000')
 ssh_service = SSHHostService('static_hosts_conf.yaml')
 rmq_host_manager.register_service('docker', docker_service)
 rmq_host_manager.register_service('ssh', ssh_service)

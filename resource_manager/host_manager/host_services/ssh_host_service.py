@@ -2,7 +2,7 @@ import logging
 
 import yaml
 
-from a_host_service import AHostService
+from bc_orch_sdk.a_host_service import AHostService
 
 class SSHHostService(AHostService):
     def __init__(self, static_inventory_file): #TODO check inventory file consistency

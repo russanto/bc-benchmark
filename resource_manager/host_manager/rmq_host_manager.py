@@ -4,7 +4,7 @@ import logging
 from bc_orch_sdk.rmq_rpc import RMQRPCServer
 import pika
 
-from a_host_service import AHostService
+from bc_orch_sdk.a_host_service import AHostService
 
 class RMQHostManager:
 

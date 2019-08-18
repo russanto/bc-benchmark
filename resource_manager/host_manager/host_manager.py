@@ -5,9 +5,6 @@ import sys
 import threading
 import uuid
 
-import docker
-from fabric import Connection
-
 class HostManager:
 
         DEFAULT_SSH_USERNAME = "ubuntu"
