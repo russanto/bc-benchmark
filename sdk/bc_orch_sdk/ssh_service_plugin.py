@@ -1,6 +1,6 @@
 from fabric import Connection
 
-from bc_orch_sdk.a_host_manager_service_plugin import AHostManagerServicePlugin
+from .a_host_manager_service_plugin import AHostManagerServicePlugin
 
 class SSHServicePlugin(AHostManagerServicePlugin):
     def transform(self, response_data):
