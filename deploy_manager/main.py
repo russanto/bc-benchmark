@@ -27,5 +27,8 @@ service_provider = RMQHostManagerServicesProvider(os.environ['RABBITMQ'])
 service_provider.register_plugin('docker', DockerServicePlugin())
 service_provider.register_plugin('ssh', SSHServicePlugin())
 dm = GethManager("/Users/antonio/Documents/Universita/INSA/bc-benchmark/tmp", service_provider)
-rmq = RMQDeployManager(pika.BlockingConnection(pika.ConnectionParameters(host=os.environ['RABBITMQ'])), "deploy_manager", dm)
-rmq.listen()
+rmq = RMQDeployManager(os.environ['RABBITMQ'], "deploy_manager", dm)
+try:
+    rmq.run()
+except KeyboardInterrupt:
+    logger.info('Closing due to user interrupt')

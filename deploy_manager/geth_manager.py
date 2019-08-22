@@ -12,8 +12,6 @@ from web3 import Web3, HTTPProvider, WebsocketProvider
 from bc_orch_sdk.deploy_manager import DeployManager
 
 from ethereum_node import EthereumNode
-from host_manager import HostManager
-from bc_orch_sdk.rmq_host_manager_services_provider import RMQHostManagerServicesProvider
 
 # TODO: Implement wait function for bc to be ready
 
@@ -55,11 +53,13 @@ class GethManager(DeployManager):
         self.logger = logging.getLogger("GethManager")
         self.consensus_protocol = self.ETHASH
         self.nodes = {}
-        self.local_connections = HostManager.get_local_connections()
+        self.local_docker = {'client': docker.DockerClient(), 'networks': {}, 'containers': {}}
         self.hosts_connections = {}
+        self.accounts = []
+        self.__local_clean()
         self.__init_local_dir()
         self.__create_password_file()
-        self.accounts = []
+        self.__start_local_node()
     
     def set_consensus_protocol(self, protocol):
         if protocol == self.ETHASH or protocol == self.CLIQUE:
@@ -88,7 +88,6 @@ class GethManager(DeployManager):
             self.docker_image_name = docker_service['images'][self.docker_image_name]
         else:
             self.logger.warning("Image %s hasn't been prepared before on hosts", self.docker_image_name)
-        self.__start_local_node()
     
     def _init_loop(self, host):
         node = EthereumNode(host, EthereumNode.TYPE_GETH)
@@ -123,7 +122,7 @@ class GethManager(DeployManager):
         except docker.errors.NotFound:
             pass
         self.__init_node_network(host)
-        docker_client.containers.run("ethereum/client-go:stable", "init /root/.ethereum/genesis.json", volumes={
+        docker_client.containers.run(self.docker_image_name, "init /root/.ethereum/genesis.json", volumes={
             self.remote_datadir: {
                 "bind": "/root/.ethereum",
                 "mode": "rw"
@@ -136,7 +135,7 @@ class GethManager(DeployManager):
         start_args += " --mine --minerthreads 2 --gasprice 1"
         start_args += " --verbosity 5"
         self.hosts_connections[host]["docker"]["containers"][self.docker_node_name] = docker_client.containers.run(
-            "ethereum/client-go:stable",
+            self.docker_image_name,
             start_args,
             name=self.docker_node_name,
             volumes={
@@ -253,38 +252,26 @@ class GethManager(DeployManager):
             ssh.put(os.path.join(self.local_keystore, key), remote=os.path.join(self.remote_keystore, os.path.basename(key)))
         self.logger.info("[%s] All pvt keys uploaded" % host)
     
-    def __start_local_node(self):
-        local_docker = self.local_connections["docker"]["client"]
-        # Removes previous executions geth nodes
+    def __local_clean(self):
+        local_docker = self.local_docker["client"]
         try:
             local_geth_node = local_docker.containers.get(self.docker_node_name)
             local_geth_node.stop()
             local_geth_node.remove()
             self.logger.info("Geth local node found, stopped and removed")
         except docker.errors.NotFound:
-            self.logger.info("Geth local node not found, a new one will be created")
+            self.logger.info("Previous Geth execution not found")
         except:
             raise
-        # Ensure that the docker network exists
-        try:
-            local_network = local_docker.networks.create(
-                self.docker_network_name,
-                driver="bridge",
-                check_duplicate=True)
-            if HostManager.running_in_container:
-                local_network.connect("orch-controller") #TODO Avoid embedding this string inside the code
-            self.local_connections["docker"]["networks"][self.docker_network_name] = local_network
-        except docker.errors.APIError as error:
-            if error.status_code == 409:
-                self.logger.info("[LOCAL]Network already deployed")
-            else:
-                self.logger.error(error)
+
+    def __start_local_node(self):
+        local_docker = self.local_docker["client"]
         local_geth_node = local_docker.containers.run(
             self.docker_image_name,
             "--rpc --rpcapi admin,eth,miner,personal,net,web3 --rpcaddr 0.0.0.0 --rpcvhosts=* --nodiscover",
             detach=True,
             volumes={
-                HostManager.resolve_local_path(self.local_datadir): { # This points always to the controller host datadir
+                self.local_datadir: {
                     'bind': '/root/.ethereum',
                     'mode': 'rw'
                 }
@@ -293,12 +280,9 @@ class GethManager(DeployManager):
                 '8546/tcp': '8546',
                 '30303/tcp': '30303',
                 '30303/udp': '30303',
-            }, name=self.docker_node_name, network=self.docker_network_name)
-        self.local_connections["docker"]["containers"][self.docker_node_name] = local_geth_node
-        if HostManager.running_in_container:
-            node = EthereumNode(self.docker_node_name, EthereumNode.TYPE_GETH)
-        else:
-            node = EthereumNode("localhost", EthereumNode.TYPE_GETH)
+            }, name=self.docker_node_name)
+        self.local_docker["containers"][self.docker_node_name] = local_geth_node
+        node = EthereumNode("localhost", EthereumNode.TYPE_GETH)
         if node.ready():
             self.local_node = node
             self.logger.info("Initialized local Geth node")
@@ -335,8 +319,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     logging.getLogger("paramiko.transport").setLevel(logging.WARNING)
 
-    from host_manager import HostManager
     import sys
+    from bc_orch_sdk.rmq_host_manager_services_provider import RMQHostManagerServicesProvider
 
     host_list = ['192.168.99.106','192.168.99.107','192.168.99.108']
 
