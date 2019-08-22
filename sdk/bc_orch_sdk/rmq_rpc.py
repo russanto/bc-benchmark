@@ -7,10 +7,9 @@ import pika
 
 class RMQRPCClient(object):
 
-    def __init__(self, rabbitmq_host, server_key):
+    def __init__(self, rabbitmq_host):
         self.logger = logging.getLogger('RMQRPCClient')
         self.rabbitmq_host = rabbitmq_host
-        self.server_key = server_key
         self.__success_callbacks = {}
         self.__failure__callbacks = {}
 
@@ -28,19 +27,19 @@ class RMQRPCClient(object):
             raise Exception('Received unexpected response')
         data = json.loads(body)
         if data['status'] >= 200 and data['status'] < 300:
-            self.__success_callbacks[props.correlation_id](data)
+            self.__success_callbacks[props.correlation_id](data['status'], **data['data'])
         else:
             if props.correlation_id in self.__failure__callbacks:
-                self.__failure__callbacks[props.correlation_id](data)
+                self.__failure__callbacks[props.correlation_id](data['status'], **data['data'])
             else:
                 self.logger.warning('Received response with status %d without any failure callback set', data['status'])
 
-    def call(self, cmd, args, on_success, on_failure=None):
+    def call(self, server, cmd, args, on_success, on_failure=None):
         self.client_ready.wait()
         corr_id = str(uuid.uuid4())
         self.channel.basic_publish(
             exchange='',
-            routing_key=self.server_key,
+            routing_key=server,
             properties=pika.BasicProperties(
                 correlation_id=corr_id,
                 reply_to=self.response_queue,
@@ -53,7 +52,7 @@ class RMQRPCClient(object):
         self.__success_callbacks[corr_id] = on_success
         if on_failure:
             self.__failure__callbacks[corr_id] = on_failure
-        self.logger.debug('Called %s on %s', cmd, self.server_key)
+        self.logger.debug('Called %s on %s', cmd, server)
 
     def wait_exit(self, timeout=None):
         return self.__consumer_thread.join(timeout=timeout)
@@ -127,6 +126,9 @@ class RMQRPCServer:
             self.__error_reply(props, 500, str(error))
 
     def __success_reply(self, props, data):
+        if not isinstance(data, dict):
+            self.logger.warning('data is not of dictionary type; any value has been substituted by empty dictionary.')
+            data = {}
         self.channel.basic_publish(**self.__json_response(props, {
             'status': 200,
             'data': data

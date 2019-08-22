@@ -10,6 +10,8 @@ from .rmq_rpc import RMQRPCClient
 
 class RMQHostManagerServicesProvider(AServicesProvider):
 
+    rpc_host_manager = 'host_manager_rpc'
+
     @property
     def available_services(self):
         return ['ssh', 'docker']
@@ -20,7 +22,7 @@ class RMQHostManagerServicesProvider(AServicesProvider):
         self.__current_request_id = 0
         self.__responses = {}
         self.__requests = {}
-        self.__rpc_client = RMQRPCClient(connection, 'host_manager_rpc')
+        self.__rpc_client = RMQRPCClient(connection)
 
     def register_plugin(self, key, plugin):
         if not isinstance(plugin, AHostManagerServicePlugin):
@@ -47,17 +49,17 @@ class RMQHostManagerServicesProvider(AServicesProvider):
         else:
             service_args['params'] = {}
 
-        def on_successfull_request(data):
+        def on_successfull_request(status, service_data):
             if service in self.__plugins:
-                self.__save_request_result(request_id, self.__plugins[service].transform(data['data']))
+                self.__save_request_result(request_id, self.__plugins[service].transform(service_data))
             else:
-                self.__save_request_result(request_id, data['data'])
-            self.logger.info('Successfully received and processed request: %d', request_id)
+                self.__save_request_result(request_id, service_data)
+            self.logger.info('Successfully requested and processed service: %s', service)
 
-        def on_failing_request(data):
-            self.logger.error("Request failed with status code %d", data['status'])
+        def on_failing_request(status, message):
+            self.logger.error("Request for service %s failed with status code %d and message %s", service, status, message)
 
-        self.__rpc_client.call('service', service_args, on_successfull_request, on_failure=on_failing_request)
+        self.__rpc_client.call(self.rpc_host_manager, 'service', service_args, on_successfull_request, on_failure=on_failing_request)
         return request_id
 
 

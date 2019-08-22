@@ -30,7 +30,7 @@ for host in hosts['hosts']:
     host_manager.add_host(host)
 
 rmq_host_manager = RMQHostManager(os.environ["RABBITMQ"], host_manager)
-docker_service = DockerHostService('localhost:5000')
+docker_service = DockerHostService('192.168.99.1:5000')
 ssh_service = SSHHostService('static_hosts_conf.yaml')
 rmq_host_manager.register_service('docker', docker_service)
 rmq_host_manager.register_service('ssh', ssh_service)

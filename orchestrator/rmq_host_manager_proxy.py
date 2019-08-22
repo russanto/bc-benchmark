@@ -1,63 +1,53 @@
 import json
 import logging
+from threading import Event, Lock
 import uuid
 
 import pika
 
+from bc_orch_sdk.rmq_rpc import RMQRPCClient
+
+# TODO Manage errors and failures
 class RMQHostManagerProxy:
 
-    CMD_QUEUE = 'host_manager_rpc'
+    rpc_host_manager = 'host_manager_rpc'
 
-    def __init__(self, rmq_channel, reply_queue):
+    def __init__(self, rpc_client):
         self.logger = logging.getLogger('RMQHostManagerProxy')
-        self.channel = rmq_channel
-        self.reply_queue = reply_queue
-        self.channel.queue_declare(queue=self.CMD_QUEUE, passive=True)
-        self.logger.info("Connected to HostManager through RabbitMQ")
-    
-    def ping(self):
-        pass
+        if not isinstance(rpc_client, RMQRPCClient):
+            raise Exception('rpc_client for RMQHostManagerProxy must be of RMQRPCClient type')
+        self.__rpc_client = rpc_client
+        self.busy = Lock()
+        self.complete = Event()
 
-    def free(self, host_list):
-        corr_id = str(uuid.uuid4())
-        self.channel.basic_publish(
-            exchange='',
-            routing_key=self.CMD_QUEUE,
-            properties=pika.BasicProperties(
-                correlation_id=corr_id,
-                reply_to=self.reply_queue,
-                content_type='application/json'),
-            body=json.dumps({
-                'cmd': 'free',
-                'args': {'host_list': host_list}
-            })
-        )
-        return corr_id
+    def free(self, hosts):
+        self.busy.acquire()
+        self.complete.clear()
+        self.__rpc_client.call(self.rpc_host_manager, 'free', {'hosts': hosts}, self.on_success, self.on_failure)
+        self.complete.wait()
+        result = self.__result
+        self.busy.release()
+        return result
 
     def reserve(self, host_count):
-        corr_id = str(uuid.uuid4())
-        self.channel.basic_publish(
-            exchange='',
-            routing_key=self.CMD_QUEUE,
-            properties=pika.BasicProperties(
-                correlation_id=corr_id,
-                reply_to=self.reply_queue,
-                content_type='application/json'),
-            body=json.dumps({
-                'cmd': 'reserve',
-                'args': {'host_count': host_count}
-            })
-        )
-        return corr_id
+        self.busy.acquire()
+        self.complete.clear()
+        self.__rpc_client.call(self.rpc_host_manager, 'reserve', {'count': host_count}, self.on_success, self.on_failure)
+        self.complete.wait()
+        result = self.__result
+        self.busy.release()
+        return result
 
-    def callback_factory(self, on_success, on_failure=None):
-        def callback(msg):
-            try:
-                msg_json = json.loads(msg.decode('utf-8'))
-                if msg_json['status'] == 200:
-                    on_success(msg_json['data']['hosts'])
-            except:
-                self.logger.error("Error processing reply")
-                if on_failure:
-                    on_failure()
-        return callback
+    def on_success(self, status, hosts):
+        self.__result = hosts
+        self.complete.set()
+    
+    def on_failure(self, status):
+        self.complete.set()
+
+if __name__ == "__main__":
+    client = RMQRPCClient('localhost')
+    proxy = RMQHostManagerProxy(client)
+    hosts = proxy.reserve(2)
+    print(hosts)
+    print(proxy.free([hosts[0]]))

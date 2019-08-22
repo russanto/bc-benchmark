@@ -18,37 +18,37 @@ if "RABBITMQ" not in os.environ:
     logger.error("RabbitMQ endpoint not set in environment RABBITMQ")
     sys.exit(1)
 
+deploy_manager = 'deploy_manager'
+
 rmq_orchestrator = RMQOrchestratorProxy(os.environ['RABBITMQ'])
-hosts_list = []
+host_list = []
 
+def on_deinit_success(status):
+    print('Deinit success')
 
-def on_free_success(hosts):
-    print("Free: " + ', '.join(hosts))
+def on_stop_success(status):
+    print('Stop success')
+    rmq_orchestrator.deploy_manager_deinit(deploy_manager, host_list, on_deinit_success)
+    print('Deinit sent')
 
-
-
-def on_deinit_success():
-    print("Game Over")
-
-def on_stop_success():
-    rmq_orchestrator.deploy_manager_deinit(hosts_list, on_deinit_success)
-
-def on_start_success():
+def on_start_success(status):
+    print('Start success. Waiting...')
     time.sleep(30)
-    rmq_orchestrator.deploy_manager_stop(on_stop_success)
+    rmq_orchestrator.deploy_manager_stop(deploy_manager, on_stop_success)
+    print('Start sent')
 
-def on_init_success():
-    rmq_orchestrator.deploy_manager_start({}, on_start_success)
-
-def on_reserve_success(hosts):
-    print("Reserved: " + ', '.join(hosts))
-    hosts_list.extend(hosts)
-    rmq_orchestrator.deploy_manager_init(hosts_list, on_init_success)
+def on_init_success(status):
+    print('Init success')
+    rmq_orchestrator.deploy_manager_start(deploy_manager, {}, on_start_success)
+    print('Start sent')
     
-rmq_orchestrator.host_manager_reserve(1, on_reserve_success)
+    
+hosts = rmq_orchestrator.host_manager_reserve(1)
+print("Reserved: " + ', '.join(hosts))
+host_list.extend(hosts)
+rmq_orchestrator.deploy_manager_init(deploy_manager, hosts, on_init_success)
+print('Init sent')
 
-
-rmq_orchestrator.listen()
 
 # UPLOAD_FOLDER = "/Users/antonio/Documents/Universita/INSA/bc-benchmark/uploads"
 # if "UPLOAD_FOLDER" in os.environ:
