@@ -7,10 +7,10 @@ from queue import Queue
 import shutil
 from threading import Event, Thread
 import time
+
 from web3 import Web3, HTTPProvider, WebsocketProvider
 
 from bc_orch_sdk.deploy_manager import DeployManager
-
 from ethereum_node import EthereumNode
 
 # TODO: Implement wait function for bc to be ready
@@ -29,6 +29,7 @@ class GethManager(DeployManager):
 
     FILE_CLIQUE = "./geth/clique.json"
     FILE_ETHASH = "./geth/genesis.json"
+    FILE_REGISTRY = "./caliper/registry.json"
 
     upload_all_keys = True
 
@@ -47,8 +48,7 @@ class GethManager(DeployManager):
     account_password = "password"
 
     def __init__(self, local_node_dir, host_manager_services_provider):
-        super().__init__()
-        super().register_service_provider(host_manager_services_provider)
+        super().__init__(host_manager_services_provider)
         self.local_datadir = local_node_dir
         self.logger = logging.getLogger("GethManager")
         self.consensus_protocol = self.ETHASH
@@ -71,10 +71,10 @@ class GethManager(DeployManager):
     # Utility methods. These should not be called from externally.
 
     def _init_setup(self, hosts):
-        ssh_req = super().request_service('ssh', hosts)
-        docker_req = super().request_service('docker', hosts, {'images': [self.docker_image_name]})
-        ssh_connections = super().wait_service('ssh', ssh_req)
-        docker_service = super().wait_service('docker', docker_req)
+        ssh_req = self.request_service('ssh', hosts)
+        docker_req = self.request_service('docker', hosts, {'images': [self.docker_image_name]})
+        ssh_connections = self.wait_service('ssh', ssh_req)
+        docker_service = self.wait_service('docker', docker_req)
         for host in hosts:
             self.hosts_connections[host] = {
                 'ssh': ssh_connections[host],
@@ -189,6 +189,43 @@ class GethManager(DeployManager):
 
     def _deinit_loop(self, host):
         del self.nodes[host]
+
+    def caliper(self):
+        at_least_one_started = False
+        for host in self.executing_hosts:
+            if self.hosts[host] == self.HOST_STATE_STARTED:
+                at_least_one_started = True
+                break
+        if len(self.executing_hosts) == 0 or not at_least_one_started:
+            raise Exception("Can't call caliper command if there aren't any host in started state")
+        available_accounts = {}
+        for host, node in self.nodes.items():
+            available_accounts[host] = [{'address': node.account[0], 'password': node.account[1]}]
+        return {
+            'registry_address': self.__deploy_registry(self.utility_node),
+            'contract_deployer_address': self.utility_node.account[0],
+            'contract_deployer_address_password': self.utility_node.account[1],
+            'available_accounts': available_accounts}
+
+    def __deploy_registry(self, node):
+        with open(self.FILE_REGISTRY) as registry_info_file:
+            registry_data = json.load(registry_info_file)
+        registry = node.web3.eth.contract(abi=registry_data["abi"], bytecode=registry_data["bytecode"])
+        self.logger.info("Creating registry")
+        try:
+            node.web3.personal.unlockAccount(node.account[0], node.account[1])
+            registry_contructed = registry.constructor()
+            registry_estimated_gas = registry_contructed.estimateGas()
+            registry_tx_hash = registry_contructed.transact({
+                "from": node.account[0],
+                "gas": registry_estimated_gas
+            })
+            registry_creation = node.web3.eth.waitForTransactionReceipt(registry_tx_hash)
+            self.logger.info("Created registry at %s" % registry_creation.contractAddress)
+            return registry_creation.contractAddress
+        except:
+            self.logger.error("Error creating registry", exc_info=True)
+            raise
 
     
     # Private utility methods
