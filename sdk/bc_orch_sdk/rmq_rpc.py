@@ -1,11 +1,12 @@
 import json
 import logging
 from threading import Event, Thread
+import time
 import uuid
 
 import pika
 
-class RMQRPCClient(object):
+class RMQRPCClient:
 
     def __init__(self, rabbitmq_host):
         self.logger = logging.getLogger('RMQRPCClient')
@@ -19,22 +20,10 @@ class RMQRPCClient(object):
         self.channel = self.connection.channel()
 
         self.__consumer_thread = Thread(target=self.__consumer_thread_fcn)
-        self.__consumer_thread.start()
-        
-
-    def __on_response(self, ch, method, props, body):
-        if props.correlation_id not in self.__success_callbacks:
-            raise Exception('Received unexpected response')
-        data = json.loads(body)
-        if data['status'] >= 200 and data['status'] < 300:
-            self.__success_callbacks[props.correlation_id](data['status'], **data['data'])
-        else:
-            if props.correlation_id in self.__failure__callbacks:
-                self.__failure__callbacks[props.correlation_id](data['status'], **data['data'])
-            else:
-                self.logger.warning('Received response with status %d without any failure callback set', data['status'])
 
     def call(self, server, cmd, args, on_success, on_failure=None):
+        if not self.__consumer_thread.is_alive():
+            self.__consumer_thread.start()
         self.client_ready.wait()
         corr_id = str(uuid.uuid4())
         self.channel.basic_publish(
@@ -56,6 +45,18 @@ class RMQRPCClient(object):
 
     def wait_exit(self, timeout=None):
         return self.__consumer_thread.join(timeout=timeout)
+    
+    def __on_response(self, ch, method, props, body):
+        if props.correlation_id not in self.__success_callbacks:
+            raise Exception('Received unexpected response')
+        data = json.loads(body)
+        if data['status'] >= 200 and data['status'] < 300:
+            self.__success_callbacks[props.correlation_id](data['status'], **data['data'])
+        else:
+            if props.correlation_id in self.__failure__callbacks:
+                self.__failure__callbacks[props.correlation_id](data['status'], data['message'])
+            else:
+                self.logger.warning('Received response with status %d without any failure callback set', data['status'])
 
     def __consumer_thread_fcn(self):
         try:
@@ -149,3 +150,25 @@ class RMQRPCServer:
                 content_type='application/json'),
             'body': json.dumps(body)
         }
+
+
+class RMQRPCWaiter:
+    def __init__(self, rabbitmq_host):
+        self.rabbitmq_host = rabbitmq_host
+        self.logger = logging.getLogger('RMQRPCWaiter')
+
+    def wait(self, attempts=10, seconds_btw_attempts=2):
+        attempt = 1
+        connected = False
+        while not connected and attempt <= attempts:
+            try:
+                connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.rabbitmq_host))
+                connected = True
+                connection.close()
+            except pika.exceptions.AMQPConnectionError:
+                attempt += 1
+                self.logger.info('Waiting for new connection attempt')
+                time.sleep(seconds_btw_attempts)
+        if attempt > attempts:
+            self.logger.error('Exceeded maximum number of attempts to connect to RabbitMQ at ' + self.rabbitmq_host)
+            raise Exception('Exceeded maximum number of attempts to connect to RabbitMQ at ' + self.rabbitmq_host)

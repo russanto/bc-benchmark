@@ -7,6 +7,7 @@ import pika
 from bc_orch_sdk.docker_service_plugin import DockerServicePlugin
 from bc_orch_sdk.rmq_deploy_manager import RMQDeployManager
 from bc_orch_sdk.rmq_host_manager_services_provider import RMQHostManagerServicesProvider
+from bc_orch_sdk.rmq_rpc import RMQRPCWaiter
 from bc_orch_sdk.ssh_service_plugin import SSHServicePlugin
 from geth_manager import GethManager
 
@@ -23,14 +24,27 @@ if "RABBITMQ" not in os.environ:
     logger.error("RabbitMQ endpoint not set in environment RABBITMQ")
     sys.exit(1)
 
+try:
+    rpc_waiter = RMQRPCWaiter(os.environ["RABBITMQ"])
+    rpc_waiter.wait()
+except Exception:
+    sys.exit(1)
+
+rmq_geth_manager_identifier = "deploy_manager"
+if "RMQ_GETH_MANAGER" in os.environ:
+    rmq_geth_manager_identifier = os.environ["RMQ_GETH_MANAGER"]
+
+tmp_dir = "/tmp"
+if "GETH_TMP_DIR" in os.environ:
+    tmp_dir = os.environ["GETH_TMP_DIR"]
 
 try:
     service_provider = RMQHostManagerServicesProvider(os.environ['RABBITMQ'])
     service_provider.register_plugin('docker', DockerServicePlugin())
     service_provider.register_plugin('ssh', SSHServicePlugin())
-    dm = GethManager("/Users/antonio/Documents/Universita/INSA/bc-benchmark/tmp", service_provider)
+    dm = GethManager(tmp_dir, service_provider)
     dm.set_consensus_protocol(dm.CLIQUE)
-    rmq = RMQDeployManager(os.environ['RABBITMQ'], "deploy_manager", dm)
+    rmq = RMQDeployManager(os.environ['RABBITMQ'], rmq_geth_manager_identifier, dm)
     rmq.run()
 except pika.exceptions.AMQPConnectionError as error:
     logger.error('Exiting due to connection error with RabbitMQ')

@@ -9,7 +9,7 @@ setuptools.setup(
     author="Antonio Russo",
     author_email="antonio@antoniorusso.me",
     description="Utility classes to easily extend BC-Orch",
-    install_requires=['pika'],
+    install_requires=['docker', 'fabric', 'pika'],
     long_description=long_description,
     long_description_content_type="text/markdown",
         url="https://github.com/russanto/bc-orchestration",

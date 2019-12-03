@@ -2,30 +2,47 @@ version: '3.5'
 services:
   orchestrator:
     build:
-      context: ./orchestrator
-      dockerfile: Dockerfile
-    image: bc-orch-orchestrator
+      context: .
+      dockerfile: orchestrator.Dockerfile
+    image: bc-orch/orchestrator
     container_name: orchestrator
     environment:
       - RABBITMQ=rabbitmq
       - LOG_LEVEL=INFO
-    restart: on-failure
     networks:
       - benchmark
+    depends_on:
+      - rabbitmq
   host_manager:
     build:
-      context: ./resource_manager/host_manager
-      dockerfile: Dockerfile
-    image: bc-orch-host-manager
+      context: .
+      dockerfile: host_manager.Dockerfile
+    image: bc-orch/host-manager
     container_name: host_manager
     environment:
       - RABBITMQ=rabbitmq
       - LOG_LEVEL=INFO
-    restart: on-failure
+    privileged: true
     networks:
       - benchmark
+    depends_on:
+      - rabbitmq
+  geth_manager:
+    build:
+      context: .
+      dockerfile: geth_manager.Dockerfile
+    image: bc-orch/geth-manager
+    container_name: geth_manager
+    environment:
+      - RABBITMQ=rabbitmq
+      - LOG_LEVEL=INFO
+    networks:
+      - benchmark
+    depends_on:
+      - rabbitmq
   rabbitmq:
     image: rabbitmq
+    restart: on-failure
     networks:
       - benchmark
 networks: 

@@ -129,6 +129,7 @@ class BaseDeployManager(ADeployManager):
                 self.hosts[host] = self.HOST_STATE_ERROR
             self.logger.error("Error on %s setup", cmd)
             self.logger.error(error)
+            raise error
         deployers = []
         host_queue = Queue()
         for host in hosts:
@@ -148,6 +149,7 @@ class BaseDeployManager(ADeployManager):
                 self.hosts[host] = self.HOST_STATE_ERROR
             self.logger.error("Error on %s teardown", cmd)
             self.logger.error(error)
+            raise error
     
     def __cmd_loop_thread(self, cmd, host_queue, args):
         host = host_queue.get()
@@ -174,10 +176,11 @@ class BaseDeployManager(ADeployManager):
 
 class DeployManager(BaseDeployManager):
 
-    def __init__(self):
+    def __init__(self, hosts_manager_service_provider):
         super().__init__()
         self.logger = logging.getLogger('DeployManager')
         self.services = {}
+        self.register_service_provider(hosts_manager_service_provider)
 
     def register_service_provider(self, service_provider):
         if not isinstance(service_provider, AServicesProvider):
@@ -199,5 +202,3 @@ class DeployManager(BaseDeployManager):
         else:
             self.logger.error("Service %s has not any registered provider", service)
             raise Exception("Service %s has not any registered provider" % service)
-
-        

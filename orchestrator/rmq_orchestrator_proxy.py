@@ -39,3 +39,6 @@ class RMQOrchestratorProxy:
     
     def deploy_manager_deinit(self, deploy_manager_id, host_list, on_success, on_failure=None):
         return self.__deploy_managers[deploy_manager_id].deinit(host_list, on_success, on_failure)
+
+    def deploy_manager_caliper(self, deploy_manager_id, on_success, on_failure=None):
+        return self.__deploy_managers[deploy_manager_id].caliper(on_success, on_failure)

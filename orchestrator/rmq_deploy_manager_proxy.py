@@ -26,3 +26,6 @@ class RMQDeployManagerProxy():
 
     def deinit(self, host_list, on_success, on_failure=None):
         return self.__rpc_client.call(self.deploy_manager_id, 'deinit', {'host_list': host_list}, on_success, on_failure)
+
+    def caliper(self, on_success, on_failure=None):
+        return self.__rpc_client.call(self.deploy_manager_id, 'caliper', None, on_success, on_failure)

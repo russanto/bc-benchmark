@@ -3,7 +3,10 @@ import os
 import sys
 import time
 
+import pika
+
 from rmq_orchestrator_proxy import RMQOrchestratorProxy
+from bc_orch_sdk.rmq_rpc import RMQRPCWaiter
 
 logger = logging.getLogger("Orchestrator")
 if "LOG_LEVEL" in os.environ:
@@ -18,36 +21,62 @@ if "RABBITMQ" not in os.environ:
     logger.error("RabbitMQ endpoint not set in environment RABBITMQ")
     sys.exit(1)
 
+try:
+    rpc_waiter = RMQRPCWaiter(os.environ["RABBITMQ"])
+    rpc_waiter.wait()
+except Exception:
+    sys.exit(1)
+
 deploy_manager = 'deploy_manager'
 
-rmq_orchestrator = RMQOrchestratorProxy(os.environ['RABBITMQ'])
-host_list = []
+logger.info('Starting orchestrator')
 
-def on_deinit_success(status):
-    print('Deinit success')
+try:
+    rmq_orchestrator = RMQOrchestratorProxy(os.environ['RABBITMQ'])
+    host_list = []
 
-def on_stop_success(status):
-    print('Stop success')
-    rmq_orchestrator.deploy_manager_deinit(deploy_manager, host_list, on_deinit_success)
-    print('Deinit sent')
+    def on_failure(status, message):
+        print('FAILURE')
+        print('Status: ' + str(status))
+        print('Message: ' + message)
 
-def on_start_success(status):
-    print('Start success. Waiting...')
-    time.sleep(30)
-    rmq_orchestrator.deploy_manager_stop(deploy_manager, on_stop_success)
-    print('Start sent')
+    def on_deinit_success(status):
+        print('Deinit success')
 
-def on_init_success(status):
-    print('Init success')
-    rmq_orchestrator.deploy_manager_start(deploy_manager, {}, on_start_success)
-    print('Start sent')
-    
-    
-hosts = rmq_orchestrator.host_manager_reserve(1)
-print("Reserved: " + ', '.join(hosts))
-host_list.extend(hosts)
-rmq_orchestrator.deploy_manager_init(deploy_manager, hosts, on_init_success)
-print('Init sent')
+    def on_stop_success(status):
+        print('Stop success')
+        rmq_orchestrator.deploy_manager_deinit(deploy_manager, host_list, on_deinit_success, on_failure)
+        print('Deinit sent')
+
+    def on_caliper_success(status, registry_address, contract_deployer_address, contract_deployer_address_password, available_accounts):
+        print('Status: ' + str(status))
+        print('Registry: ' + registry_address)
+        print('Deployer: ' + contract_deployer_address)
+        print('DeployerPassword: ' + contract_deployer_address_password)
+        print(available_accounts)
+        rmq_orchestrator.deploy_manager_stop(deploy_manager, on_stop_success, on_failure)
+        print('Stop sent')
+
+    def on_start_success(status):
+        print('Start success. Waiting...')
+        time.sleep(30)
+        rmq_orchestrator.deploy_manager_caliper(deploy_manager, on_caliper_success, on_failure)
+        print('Caliper sent')
+
+    def on_init_success(status):
+        print('Init success')
+        rmq_orchestrator.deploy_manager_start(deploy_manager, {}, on_start_success, on_failure)
+        print('Start sent')
+        
+    logger.info('Orchestrator proxy initialized')
+    hosts = rmq_orchestrator.host_manager_reserve(1)
+    print("Reserved: " + ', '.join(hosts))
+    host_list.extend(hosts)
+    rmq_orchestrator.deploy_manager_init(deploy_manager, hosts, on_init_success, on_failure)
+    print('Init sent')
+except pika.exceptions.AMQPConnectionError as error:
+    logger.error('Exiting due to connection error with RabbitMQ')
+    sys.exit(1)
 
 
 # UPLOAD_FOLDER = "/Users/antonio/Documents/Universita/INSA/bc-benchmark/uploads"

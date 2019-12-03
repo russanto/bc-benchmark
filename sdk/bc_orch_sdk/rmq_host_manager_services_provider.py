@@ -58,6 +58,7 @@ class RMQHostManagerServicesProvider(AServicesProvider):
 
         def on_failing_request(status, message):
             self.logger.error("Request for service %s failed with status code %d and message %s", service, status, message)
+            self.__save_request_result(request_id, Exception(status, message))
 
         self.__rpc_client.call(self.rpc_host_manager, 'service', service_args, on_successfull_request, on_failure=on_failing_request)
         return request_id
@@ -67,6 +68,8 @@ class RMQHostManagerServicesProvider(AServicesProvider):
         if request_id not in self.__requests:
             raise Exception("Provided request_id is not valid")
         self.__requests[request_id].wait()
+        if isinstance(self.__responses[request_id], Exception):
+            raise self.__responses[request_id]
         return self.__responses[request_id]
 
     def __generate_request(self):

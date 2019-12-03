@@ -1,2 +1,5 @@
-orchestration/*
 block-propagation/*
+reports/*
+tmp/*
+uploads/*
+__pycache__
